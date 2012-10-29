@@ -95,14 +95,34 @@ Backplane.init = function(config) {
         this.config.channelExpires = d.toGMTString();
     }
 
+    // XXX: this can be removed after couple of weeks
+    this.renameOldCache();
+
     if (this.getChannelName()) {
         this.finishInit(false);
     } else {
+        this.invalidateCache();
         this.fetchNewChannel();
     }
     return true;
 };
 
+Backplane.renameOldCache = function() {
+    // Check for old cache
+    if (!localStorage) return;
+    var v1 = localStorage.getItem("cacheExpires");
+    var v2 = localStorage.getItem("cachedMessages");
+    var v3 = localStorage.getItem("cachedMessagesIndex");
+    if (!v1 || !v2 || !v3) return;
+
+    localStorage.setItem("backplaneCacheExpires", v1);
+    localStorage.setItem("backplaneCachedMessages", v2);
+    localStorage.setItem("backplaneCachedMessagesIndex", v3);
+
+    localStorage.removeItem("cacheExpires");
+    localStorage.removeItem("cachedMessages");
+    localStorage.removeItem("cachedMessagesIndex");
+}
 
 /**
  * Subscribes to messages from Backplane server
@@ -201,6 +221,7 @@ Backplane.getChannelName = function() {
         if (this.serverChannel) {
             return false;
         } else {
+            this.invalidateCache();
             this.channelByBus[this.config.busName] = (new Date()).valueOf().toString() + Math.random().toString().substr(2, 5);
             this.setCookieChannels();
         }
@@ -237,12 +258,7 @@ Backplane.setCookieChannels = function() {
 
 Backplane.resetCookieChannel = function() {
     delete this.channelByBus[this.config.busName];
-    if (localStorage) {
-        this.log("removing cached backplane messages");
-        localStorage.removeItem("cachedMessages");
-        localStorage.removeItem("cachedMessagesIndex");
-    }
- 
+    this.invalidateCache();
     this.setCookieChannels();
     if (this.serverChannel) {
         this.fetchNewChannel();
@@ -260,7 +276,7 @@ Backplane.fetchNewChannel = function() {
         for (var prop in oldScript) {
             delete oldScript[prop];
         }
-	oldScript = document.getElementById('fetchChannelId')
+	    oldScript = document.getElementById('fetchChannelId')
     }
 
     var script = document.createElement("script");
@@ -272,6 +288,17 @@ Backplane.fetchNewChannel = function() {
 
 };
 
+Backplane.invalidateCache = function() {
+    Backplane.log("removing cached backplane messages");
+    this.cachedMessages = {};
+    this.cachedMessagesIndex = [];
+
+    if (localStorage) {
+        localStorage.removeItem("backplaneCacheExpires");
+        localStorage.removeItem("backplaneCachedMessages");
+        localStorage.removeItem("backplaneCachedMessagesIndex");
+    }
+};
 
 Backplane.normalizeURL = function(rawURL) {
     return rawURL.replace(/^\s*(https?:\/\/)?(.*?)[\s\/]*$/, function(match, proto, uri){
@@ -320,18 +347,16 @@ Backplane.request = function() {
         // rather than hitting the server
         if (localStorage && !self.since) {
             // should cache be expired?
-            var cacheExpiresString = localStorage.getItem("cacheExpires");
+            var cacheExpiresString = localStorage.getItem("backplaneCacheExpires");
             if (cacheExpiresString) {
                var cacheExpires = Date.parse(cacheExpiresString);
                var now = new Date();
                if (now > cacheExpires) {
-                 localStorage.removeItem("cacheExpires");
-                 localStorage.removeItem("cachedMessages");
-                 localStorage.removeItem("cachedMessagesIndex");
-                 Backplane.log("cache expired, purged");
+                 Backplane.log("cache expired");
+                 this.invalidateCache();
                } else {
-                 this.cachedMessages = JSON.parse(localStorage.getItem("cachedMessages"));
-                 this.cachedMessagesIndex = JSON.parse(localStorage.getItem("cachedMessagesIndex"));
+                 this.cachedMessages = JSON.parse(localStorage.getItem("backplaneCachedMessages"));
+                 this.cachedMessagesIndex = JSON.parse(localStorage.getItem("backplaneCachedMessagesIndex"));
                  if (this.cachedMessages) {
                     var messages = []; 
                     for (var i=0; i<this.cachedMessagesIndex.length; i++) {
@@ -397,11 +422,11 @@ Backplane.response = function(messages) {
                 this.cachedMessagesIndex.splice(0,1);
             }
             if (localStorage) {
-                localStorage.setItem("cachedMessages", JSON.stringify(this.cachedMessages));
-                localStorage.setItem("cachedMessagesIndex", JSON.stringify(this.cachedMessagesIndex));
+                localStorage.setItem("backplaneCachedMessages", JSON.stringify(this.cachedMessages));
+                localStorage.setItem("backplaneCachedMessagesIndex", JSON.stringify(this.cachedMessagesIndex));
                 var expiresDate = new Date();
                 expiresDate.setDate(expiresDate.getDate()+7);
-                localStorage.setItem("cacheExpires", expiresDate.toUTCString()); 
+                localStorage.setItem("backplaneCacheExpires", expiresDate.toUTCString()); 
             }
         }
 
