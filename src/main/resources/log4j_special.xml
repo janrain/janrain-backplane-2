@@ -47,8 +47,9 @@
         <param name="Facility" value="${SYSLOG_FACILITY}"/>
         <param name="SyslogHost" value="${SYSLOG_HOST}"/>
         <param name="Threshold" value="INFO"/>
+        <param name="Header" value="true"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{MMM dd HH:mm:ss} ${AWS_INSTANCE_ID}-${APPID}: %-5p %m%n"/>
+            <param name="ConversionPattern" value="${AWS_INSTANCE_ID}-${APPID}: %-5p %m%n"/>
         </layout>
     </appender>
 
