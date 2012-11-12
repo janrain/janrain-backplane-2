@@ -16,8 +16,8 @@
 
 package com.janrain.backplane.server;
 
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -40,7 +40,7 @@ public class BusConfig1 extends ExternalizableCore {
         d.put(owner, BUS_PERMISSION.GETALL.name());
         try {
             init(busName, d);
-        } catch (SimpleDBException e) {
+        } catch (MessageException e) {
             throw new BackplaneServerException(e.getMessage(), e);
         }
     }
@@ -90,7 +90,7 @@ public class BusConfig1 extends ExternalizableCore {
 
         RETENTION_TIME_SECONDS {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 if (isRequired() || value != null) {
                     String fieldName = getFieldName();
                     int intValue = validateInt(fieldName, value);
@@ -102,7 +102,7 @@ public class BusConfig1 extends ExternalizableCore {
 
         RETENTION_STICKY_TIME_SECONDS {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 if (isRequired() || value != null) {
                     String fieldName = getFieldName();
                     validateInt(fieldName, value);
@@ -127,7 +127,7 @@ public class BusConfig1 extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(name(), value);
         }
 

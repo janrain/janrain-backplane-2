@@ -23,7 +23,7 @@ import com.janrain.backplane2.server.config.Backplane2Config;
 import com.janrain.backplane2.server.config.Client;
 import com.janrain.backplane2.server.config.User;
 import com.janrain.backplane2.server.dao.DAOFactory;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.crypto.ChannelUtil;
 import com.janrain.crypto.HmacHashUtils;
 import com.janrain.oauth2.TokenException;
@@ -82,7 +82,7 @@ public class ProvisioningController2Test {
             client = new Client( ChannelUtil.randomString(20), pw, "http://source.com", "http://redirect.com" );
             daoFactory.getClientDAO().persist(client);
             logger.info("Created test client: " + client.getClientId());
-        } catch (SimpleDBException e) {
+        } catch (MessageException e) {
             throw new BackplaneServerException(e.getMessage());
         }
     }

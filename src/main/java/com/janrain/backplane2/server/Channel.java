@@ -2,8 +2,8 @@ package com.janrain.backplane2.server;
 
 import com.janrain.backplane.server.ExternalizableCore;
 import com.janrain.backplane2.server.config.BusConfig2;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import com.janrain.crypto.ChannelUtil;
 
 import java.util.EnumSet;
@@ -19,7 +19,7 @@ public class Channel extends ExternalizableCore {
     @SuppressWarnings("UnusedDeclaration")
     public Channel() { }
 
-    public Channel(String channelId, BusConfig2 busConfig, int channelExpireSeconds) throws SimpleDBException {
+    public Channel(String channelId, BusConfig2 busConfig, int channelExpireSeconds) throws MessageException {
         String id = channelId == null ? ChannelUtil.randomString(CHANNEL_NAME_LENGTH) : channelId;
         Map<String,String> data = new LinkedHashMap<String, String>();
         data.put(ChannelField.ID.getFieldName(), id);
@@ -50,21 +50,21 @@ public class Channel extends ExternalizableCore {
 
         EXPIRE_SECONDS("expire_seconds") {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 validateInt(getFieldName(), value);
         }},
 
         MESSAGE_EXPIRE_DEFAULT_SECONDS("message_expire_default_seconds") {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 validateInt(getFieldName(), value);
         }},
 
         MESSAGE_EXPIRE_MAX_SECONDS("message_expire_max_seconds") {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 validateInt(getFieldName(), value);
         }};
@@ -80,7 +80,7 @@ public class Channel extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(getFieldName(), value);
         }
 

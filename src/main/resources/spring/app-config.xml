@@ -44,17 +44,6 @@
     <import resource="mvc-config.xml" />
     -->
 
-
-    <bean id="simpleDB" class="com.amazonaws.services.simpledb.AmazonSimpleDBClient">
-        <constructor-arg>
-            <bean class="com.janrain.commons.util.SystemPropsAWSCredentials"/>
-        </constructor-arg>
-    </bean>
-
-    <!--
-    <bean id="superSimpleDB" class="com.janrain.commons.supersimpledb.SuperSimpleDBImpl" />
-    -->
-
     <bean id="bpIdFilter" class="com.janrain.servlet.InstanceIdFilter" />
     <bean id="jsonpFilter" class="com.janrain.servlet.JsonpCallbackFilter" />
 

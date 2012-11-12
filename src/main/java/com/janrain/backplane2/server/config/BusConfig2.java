@@ -18,8 +18,8 @@ package com.janrain.backplane2.server.config;
 
 import com.janrain.backplane.server.ExternalizableCore;
 import com.janrain.backplane2.server.InvalidRequestException;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 
 import java.util.*;
 
@@ -32,7 +32,7 @@ public class BusConfig2 extends ExternalizableCore {
 
     public BusConfig2() {}
 
-    public BusConfig2(String busName, String busOwner, String retentionTimeSeconds, String retentionTimeStickySeconds) throws SimpleDBException {
+    public BusConfig2(String busName, String busOwner, String retentionTimeSeconds, String retentionTimeStickySeconds) throws MessageException {
         Map<String,String> d = new LinkedHashMap<String, String>();
         d.put(Field.BUS_NAME.getFieldName(), busName);
         d.put(Field.OWNER.getFieldName(), busOwner);
@@ -67,7 +67,7 @@ public class BusConfig2 extends ExternalizableCore {
 
         RETENTION_TIME_SECONDS {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 if (isRequired() || value != null) {
                     String fieldName = getFieldName();
                     int intValue = validateInt(fieldName, value);
@@ -79,7 +79,7 @@ public class BusConfig2 extends ExternalizableCore {
 
         RETENTION_STICKY_TIME_SECONDS {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 if (isRequired() || value != null) {
                     String fieldName = getFieldName();
                     validateInt(fieldName, value);
@@ -104,7 +104,7 @@ public class BusConfig2 extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(name(), value);
         }
 

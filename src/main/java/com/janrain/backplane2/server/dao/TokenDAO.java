@@ -18,7 +18,7 @@ package com.janrain.backplane2.server.dao;
 
 import com.janrain.backplane2.server.BackplaneServerException;
 import com.janrain.backplane2.server.Token;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 
 import java.util.List;
 
@@ -32,5 +32,5 @@ public interface TokenDAO extends DAO<Token> {
     void revokeTokenByGrant(String grantId) throws BackplaneServerException;
 
     void deleteExpiredTokens() throws BackplaneServerException;
-    void cacheRevokedCleanup() throws SimpleDBException;
+    void cacheRevokedCleanup() throws MessageException;
 }

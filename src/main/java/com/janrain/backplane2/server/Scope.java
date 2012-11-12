@@ -16,7 +16,7 @@
 
 package com.janrain.backplane2.server;
 
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.commons.util.Pair;
 import com.janrain.oauth2.OAuth2;
 import com.janrain.oauth2.TokenException;
@@ -314,7 +314,7 @@ public class Scope {
         String value = token.substring(delimiterIndex+1);
         try {
             key.validate(value);
-        } catch (SimpleDBException e) {
+        } catch (MessageException e) {
             throw new TokenException(OAuth2.OAUTH2_TOKEN_INVALID_SCOPE, "invalid scope value in token: " + token);
         }
         if (StringUtils.isBlank(value)) {

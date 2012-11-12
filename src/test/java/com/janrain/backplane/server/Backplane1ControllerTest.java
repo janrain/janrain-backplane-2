@@ -19,8 +19,6 @@ package com.janrain.backplane.server;
 import com.janrain.backplane.server.config.Backplane1Config;
 import com.janrain.backplane.server.dao.DaoFactory;
 import com.janrain.backplane2.server.config.User;
-import com.janrain.commons.supersimpledb.SuperSimpleDB;
-import com.janrain.crypto.HmacHashUtils;
 import junit.framework.TestCase;
 import org.apache.catalina.util.Base64;
 import org.apache.log4j.Logger;
@@ -39,9 +37,6 @@ import org.springframework.web.servlet.HandlerAdapter;
 import javax.inject.Inject;
 
 import java.util.Map;
-
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * @author Tom Raney

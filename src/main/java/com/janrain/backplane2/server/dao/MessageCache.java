@@ -1,7 +1,7 @@
 package com.janrain.backplane2.server.dao;
 
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.Message;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.Message;
 import org.apache.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
@@ -58,9 +58,9 @@ public class MessageCache<T extends Message> {
      * All new Messages MUST compare greater than any existing message in the cache, otherwise the operation will fail.
      *
      * @param messages
-     * @throws SimpleDBException if any of the provided messages compares smaller than any existing message in the cache.
+     * @throws MessageException if any of the provided messages compares smaller than any existing message in the cache.
      */
-    public synchronized void add(List<T> messages) throws SimpleDBException {
+    public synchronized void add(List<T> messages) throws MessageException {
 
         lastUpdated.set(System.currentTimeMillis());
 
@@ -71,7 +71,7 @@ public class MessageCache<T extends Message> {
         T first = messages.get(0);
         T lastCached = getLastMessage();
         if (lastCached != null && first.compareTo(lastCached) < 0) {
-            throw new SimpleDBException("Cache update rejected, newer messages exists: " + lastCached.getIdValue());
+            throw new MessageException("Cache update rejected, newer messages exists: " + lastCached.getIdValue());
         }
 
         for(T message : messages) {

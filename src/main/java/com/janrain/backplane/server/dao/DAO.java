@@ -18,7 +18,7 @@ package com.janrain.backplane.server.dao;
 
 
 import com.janrain.backplane.server.BackplaneServerException;
-import com.janrain.commons.supersimpledb.message.NamedMap;
+import com.janrain.commons.message.NamedMap;
 
 import java.util.List;
 

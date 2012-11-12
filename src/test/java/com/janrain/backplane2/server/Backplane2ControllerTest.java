@@ -24,7 +24,7 @@ import com.janrain.backplane2.server.config.User;
 import com.janrain.backplane2.server.dao.BackplaneMessageDAO;
 import com.janrain.backplane2.server.dao.DAOFactory;
 import com.janrain.backplane2.server.dao.TokenDAO;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.crypto.ChannelUtil;
 import com.janrain.crypto.HmacHashUtils;
 import com.janrain.oauth2.*;
@@ -215,7 +215,7 @@ public class Backplane2ControllerTest {
 
             daoFactory.getClientDAO().persist(client);
             return client;
-        } catch (SimpleDBException e) {
+        } catch (MessageException e) {
             throw new BackplaneServerException(e.getMessage());
         }
     }

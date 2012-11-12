@@ -1,7 +1,7 @@
 package com.janrain.backplane2.server;
 
 import com.janrain.backplane2.server.dao.DAOFactory;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.oauth2.TokenException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
@@ -111,7 +111,7 @@ public class GrantLogic {
           Grant updated; // no expiration
           try {
               updated = new Grant.Builder(existing, updatedState).buildGrant();
-          } catch (SimpleDBException e) {
+          } catch (MessageException e) {
               throw new BackplaneServerException(e.getMessage());
           }
 

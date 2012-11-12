@@ -3,7 +3,7 @@ package com.janrain.oauth2;
 import com.janrain.backplane2.server.*;
 import com.janrain.backplane2.server.config.BusConfig2;
 import com.janrain.backplane2.server.dao.DAOFactory;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -105,14 +105,14 @@ public class AnonymousTokenRequest implements TokenRequest {
     private Token refreshToken;
     private BusConfig2 busConfig;
 
-    private static String generateRefreshToken(GrantType refreshType, Scope scope, DAOFactory daoFactory) throws SimpleDBException, BackplaneServerException {
+    private static String generateRefreshToken(GrantType refreshType, Scope scope, DAOFactory daoFactory) throws MessageException, BackplaneServerException {
         if (refreshType == null || ! refreshType.isRefresh()) return null;
         Token refreshToken = new Token.Builder(refreshType, scope.toString()).buildToken();
         daoFactory.getTokenDao().persist(refreshToken);
         return refreshToken.getIdValue();
     }
 
-    private Channel createOrRefreshChannel(int expireSeconds) throws TokenException, SimpleDBException, BackplaneServerException {
+    private Channel createOrRefreshChannel(int expireSeconds) throws TokenException, MessageException, BackplaneServerException {
         String channelId = null;
         BusConfig2 config;
         if (refreshToken != null ) {

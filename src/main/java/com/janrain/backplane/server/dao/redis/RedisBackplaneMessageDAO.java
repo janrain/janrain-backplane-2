@@ -19,8 +19,8 @@ package com.janrain.backplane.server.dao.redis;
 import com.janrain.backplane.server.BackplaneMessage;
 import com.janrain.backplane.server.BackplaneServerException;
 import com.janrain.backplane.server.dao.DAO;
-import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.redis.Redis;
+import com.janrain.commons.message.MessageException;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Histogram;
 import com.yammer.metrics.core.MetricName;
@@ -164,7 +164,7 @@ public class RedisBackplaneMessageDAO extends DAO<BackplaneMessage> {
      * @return
      */
 
-    public List<BackplaneMessage> getMessagesByChannel(String bus, String channel, String since, String sticky) throws SimpleDBException, BackplaneServerException {
+    public List<BackplaneMessage> getMessagesByChannel(String bus, String channel, String since, String sticky) throws MessageException, BackplaneServerException {
 
         Jedis jedis = null;
 
@@ -220,7 +220,7 @@ public class RedisBackplaneMessageDAO extends DAO<BackplaneMessage> {
         return ids;
     }
 
-    public List<BackplaneMessage> getMessagesByBus(String bus, String since, String sticky) throws SimpleDBException, BackplaneServerException {
+    public List<BackplaneMessage> getMessagesByBus(String bus, String since, String sticky) throws MessageException, BackplaneServerException {
 
         Jedis jedis = null;
 

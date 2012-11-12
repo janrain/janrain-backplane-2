@@ -3,7 +3,7 @@ package com.janrain.oauth2;
 import com.janrain.backplane2.server.*;
 import com.janrain.backplane2.server.config.Client;
 import com.janrain.backplane2.server.dao.DAOFactory;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.commons.util.Pair;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
@@ -94,7 +94,7 @@ public class AuthenticatedTokenRequest implements TokenRequest {
                     .buildToken();
             daoFactory.getTokenDao().persist(accessToken);
             return accessToken.response(generateRefreshToken(grantType.getRefreshType(), accessToken));
-        } catch (SimpleDBException e) {
+        } catch (MessageException e) {
             logger.error("error processing anonymous access token request: " + e.getMessage(), e);
             throw new TokenException(OAuth2.OAUTH2_TOKEN_SERVER_ERROR, "error processing anonymous token request", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         } catch (BackplaneServerException bpe) {
@@ -159,7 +159,7 @@ public class AuthenticatedTokenRequest implements TokenRequest {
         }
     }
 
-    private String generateRefreshToken(GrantType refreshType, Token accessToken) throws SimpleDBException, BackplaneServerException {
+    private String generateRefreshToken(GrantType refreshType, Token accessToken) throws MessageException, BackplaneServerException {
         if (! refreshType.isRefresh()) return null;
         Token refreshToken = new Token.Builder(refreshType, accessToken.getScopeString())
                 .issuedToClient(authenticatedClientId)

@@ -17,8 +17,8 @@
 package com.janrain.backplane2.server.config;
 
 import com.janrain.backplane2.server.InvalidRequestException;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import com.janrain.oauth2.OAuth2;
 import com.janrain.oauth2.ValidationException;
 
@@ -35,7 +35,7 @@ public class Client extends User implements Externalizable {
      */
     public Client() {}
 
-    public Client(String client_id, String client_secret, String source_url, String redirect_uri) throws SimpleDBException {
+    public Client(String client_id, String client_secret, String source_url, String redirect_uri) throws MessageException {
         Map<String,String> d = new LinkedHashMap<String, String>();
         d.put(Field.USER.getFieldName(), client_id);
         d.put(Field.PWDHASH.getFieldName(), client_secret);
@@ -76,7 +76,7 @@ public class Client extends User implements Externalizable {
         
         REDIRECT_URI {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     OAuth2.validateRedirectUri(value);
@@ -97,7 +97,7 @@ public class Client extends User implements Externalizable {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(name(), value);
         }
     }

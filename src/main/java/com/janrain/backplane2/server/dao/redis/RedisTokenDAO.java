@@ -3,7 +3,7 @@ package com.janrain.backplane2.server.dao.redis;
 import com.janrain.backplane2.server.BackplaneServerException;
 import com.janrain.backplane2.server.Token;
 import com.janrain.backplane2.server.dao.TokenDAO;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.redis.Redis;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.log4j.Logger;
@@ -131,7 +131,7 @@ public class RedisTokenDAO implements TokenDAO {
     }
 
     @Override
-    public void cacheRevokedCleanup() throws SimpleDBException {
+    public void cacheRevokedCleanup() throws MessageException {
         // no-op
     }
 

@@ -24,7 +24,7 @@
 	<packaging>war</packaging>
   <version>${project.version}</version>
 	<properties>
-    <project.version>BP_2_0.2012.43_RC1</project.version>
+    <project.version>BP_2_0.2012.46_RC1-steven</project.version>
 		<org.springframework.version>3.0.3.RELEASE</org.springframework.version>
 		<org.slf4j.version>1.5.10</org.slf4j.version>
     	<powermock.version>1.4.5</powermock.version>
@@ -240,11 +240,6 @@
             <version>2.7.2</version>
         </dependency>
          <!-- supersimpledb -->
-        <dependency>
-            <groupId>com.janrain.commons.supersimpledb</groupId>
-            <artifactId>commons-supersimpledb</artifactId>
-            <version>1.0.27</version>
-        </dependency>
         <!-- intellij annotations library for @NotNull and @Nullable -->
         <dependency>
             <groupId>org.kohsuke.jetbrains</groupId>
@@ -276,6 +271,11 @@
             <groupId>com.netflix.curator</groupId>
             <artifactId>curator-recipes</artifactId>
             <version>1.1.15</version>
+        </dependency>
+        <dependency>
+        	<groupId>com.janrain</groupId>
+        	<artifactId>federate-utils</artifactId>
+        	<version>1.2.0</version>
         </dependency>
     </dependencies>
     <repositories>

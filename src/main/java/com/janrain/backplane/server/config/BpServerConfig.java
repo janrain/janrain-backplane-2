@@ -2,8 +2,8 @@ package com.janrain.backplane.server.config;
 
 import com.janrain.backplane.server.ExternalizableCore;
 import com.janrain.backplane2.server.InvalidRequestException;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import com.janrain.utils.BackplaneSystemProps;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -31,7 +31,7 @@ public class BpServerConfig extends ExternalizableCore {
 
         try {
             super.init(BackplaneSystemProps.BPSERVER_CONFIG_KEY, d);
-        } catch (SimpleDBException e) {
+        } catch (MessageException e) {
             logger.error(e);
         }
 
@@ -69,7 +69,7 @@ public class BpServerConfig extends ExternalizableCore {
         CLEANUP_INTERVAL_MINUTES,
         DEFAULT_MESSAGES_MAX {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 if (isRequired() || value != null) {
                     String fieldName = getFieldName();
                     int intValue = validateInt(fieldName, value);
@@ -88,7 +88,7 @@ public class BpServerConfig extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(name(), value);
         }
 

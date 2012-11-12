@@ -19,9 +19,9 @@ package com.janrain.backplane2.server.provision;
 import com.janrain.backplane2.server.*;
 import com.janrain.backplane2.server.config.*;
 import com.janrain.backplane2.server.dao.DAOFactory;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.AbstractMessage;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.AbstractMessage;
+import com.janrain.commons.message.MessageField;
 import com.janrain.crypto.HmacHashUtils;
 import com.janrain.oauth2.TokenException;
 import com.janrain.servlet.ServletUtil;
@@ -319,7 +319,7 @@ public class ProvisioningController2 {
         return result;
     }
 
-    private void addGrant(String issuer, String clientId, String buses) throws SimpleDBException, BackplaneServerException {
+    private void addGrant(String issuer, String clientId, String buses) throws MessageException, BackplaneServerException {
         Grant grant = new Grant.Builder(
                 GrantType.CLIENT_CREDENTIALS,
                 GrantState.ACTIVE,
@@ -330,7 +330,7 @@ public class ProvisioningController2 {
         daoFactory.getGrantDao().persist(grant);
     }
 
-    private void revokeBuses(String clientId, String buses) throws TokenException, SimpleDBException, BackplaneServerException {
+    private void revokeBuses(String clientId, String buses) throws TokenException, MessageException, BackplaneServerException {
         boolean updated = false;
         Scope busesToRevoke = new Scope(Scope.getEncodedScopesAsString(BackplaneMessage.Field.BUS, buses));
         if ( ! daoFactory.getGrantDao().revokeBuses(daoFactory.getGrantDao().getByClientId(clientId), buses) ) {

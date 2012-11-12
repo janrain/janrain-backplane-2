@@ -17,8 +17,8 @@
 package com.janrain.backplane2.server.config;
 
 import com.janrain.backplane.server.ExternalizableCore;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import com.janrain.crypto.HmacHashUtils;
 
 import java.util.*;
@@ -70,7 +70,7 @@ public class User extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(name(), value);
         }
     }

@@ -18,8 +18,8 @@ package com.janrain.backplane2.server;
 
 import com.janrain.backplane.server.ExternalizableCore;
 import com.janrain.backplane2.server.config.Backplane2Config;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import com.janrain.crypto.ChannelUtil;
 import com.janrain.oauth2.TokenException;
 import org.apache.commons.lang.StringUtils;
@@ -107,12 +107,12 @@ public class Grant extends ExternalizableCore {
 
         TYPE("type") { // GrantType
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     GrantType.valueOf(value);
                 } catch (IllegalArgumentException e) {
-                    throw new SimpleDBException("Invalid grant type: " + value);
+                    throw new MessageException("Invalid grant type: " + value);
                 }
             }
         },
@@ -123,50 +123,50 @@ public class Grant extends ExternalizableCore {
 
         AUTHORIZED_SCOPES("authorized_scopes") {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     new Scope(value);
                 } catch (TokenException e) {
-                    throw new SimpleDBException("Invalid grant scope: " + value);
+                    throw new MessageException("Invalid grant scope: " + value);
                 }
             }
         },
 
         STATE("state") { // <GrantState enum value>
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     GrantState.valueOf(value);
                 } catch (IllegalArgumentException e) {
-                    throw new SimpleDBException("Invalid grant value for state: " + value);
+                    throw new MessageException("Invalid grant value for state: " + value);
                 }
             }
         },
         
         TIME_UPDATE("time_update") { // <ISO8601 timestamp>
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     Backplane2Config.ISO8601.get().parse(value);
                 } catch (ParseException e) {
-                    throw new SimpleDBException("Invalid grant value for time_update: " + value);
+                    throw new MessageException("Invalid grant value for time_update: " + value);
                 }
             }
         },
 
         TIME_EXPIRE("time_expire", false) { // <ISO8601 timestamp> when the grant's current state expires
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     if (StringUtils.isNotEmpty(value)) {
                         Backplane2Config.ISO8601.get().parse(value);
                     }
                 } catch (ParseException e) {
-                    throw new SimpleDBException("Invalid grant value for time_expire: " + value);
+                    throw new MessageException("Invalid grant value for time_expire: " + value);
                 }
             }
         };
@@ -182,7 +182,7 @@ public class Grant extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(getFieldName(), value);
         }
 
@@ -229,7 +229,7 @@ public class Grant extends ExternalizableCore {
             return this;
         }
 
-        public Grant buildGrant() throws SimpleDBException {
+        public Grant buildGrant() throws MessageException {
             String id = data.get(GrantField.ID.getFieldName());
             if ( id == null) {
                 id = ChannelUtil.randomString(CODE_ID_LENGTH);
@@ -266,7 +266,7 @@ public class Grant extends ExternalizableCore {
 
     private static final int CODE_EXPIRATION_SECONDS_DEFAULT = 600; // 10 minutes
 
-    private Grant(String id, Map<String,String> data) throws SimpleDBException {
+    private Grant(String id, Map<String,String> data) throws MessageException {
         super.init(id, data);
         logger.info("Grant created: " + get(GrantField.ISSUED_BY_USER_ID) + " authorized client " + get(GrantField.ISSUED_TO_CLIENT_ID) + " for scopes: " + get(GrantField.AUTHORIZED_SCOPES));
     }

@@ -17,8 +17,8 @@
 package com.janrain.backplane.server;
 
 import com.janrain.backplane.server.config.Backplane1Config;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.commons.supersimpledb.message.MessageField;
+import com.janrain.commons.message.MessageException;
+import com.janrain.commons.message.MessageField;
 import com.janrain.commons.util.Pair;
 import com.janrain.crypto.ChannelUtil;
 import org.apache.commons.lang.StringUtils;
@@ -40,7 +40,7 @@ public class BackplaneMessage extends ExternalizableCore {
 
     public BackplaneMessage() { }
 
-    public BackplaneMessage(String bus, String channel, Map<String, Object> data) throws BackplaneServerException, SimpleDBException {
+    public BackplaneMessage(String bus, String channel, Map<String, Object> data) throws BackplaneServerException, MessageException {
         Map<String,String> d = new LinkedHashMap<String, String>(toStringMap(data));
         String id = generateMessageId(new Date());
         d.put(Field.ID.getFieldName(), id);
@@ -132,7 +132,7 @@ public class BackplaneMessage extends ExternalizableCore {
         BUS("bus"),
         STICKY("sticky", false) {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 if (value != null && ! Boolean.TRUE.toString().equalsIgnoreCase(value) && ! Boolean.FALSE.toString().equalsIgnoreCase(value)) {
                     throw new IllegalArgumentException("Invalid boolean value for " + getFieldName() + ": " + value);
@@ -140,7 +140,7 @@ public class BackplaneMessage extends ExternalizableCore {
             }},
         SOURCE("source") {
             @Override
-            public void validate(String value) throws SimpleDBException {
+            public void validate(String value) throws MessageException {
                 super.validate(value);
                 try {
                     new URL(value);
@@ -163,7 +163,7 @@ public class BackplaneMessage extends ExternalizableCore {
         }
 
         @Override
-        public void validate(String value) throws SimpleDBException {
+        public void validate(String value) throws MessageException {
             if (isRequired()) validateNotBlank(getFieldName(), value);
         }
 

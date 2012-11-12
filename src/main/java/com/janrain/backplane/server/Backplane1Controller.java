@@ -19,14 +19,14 @@ package com.janrain.backplane.server;
 import com.janrain.backplane.server.config.AuthException;
 import com.janrain.backplane.server.config.Backplane1Config;
 import com.janrain.backplane.server.config.BpServerConfig;
-import com.janrain.backplane.server.dao.DaoFactory;
 import com.janrain.backplane.server.dao.redis.RedisBackplaneMessageDAO;
+import com.janrain.backplane.server.dao.DaoFactory;
 import com.janrain.backplane2.server.config.User;
 import com.janrain.cache.CachedL1;
-import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.crypto.HmacHashUtils;
 import com.janrain.servlet.ServletUtil;
 import com.janrain.utils.BackplaneSystemProps;
+import com.janrain.commons.message.MessageException;
+import com.janrain.crypto.HmacHashUtils;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Histogram;
 import com.yammer.metrics.core.MetricName;
@@ -183,7 +183,7 @@ public class Backplane1Controller {
             @PathVariable String bus,
             @RequestParam(value = "since", defaultValue = "") String since,
             @RequestParam(value = "sticky", required = false) String sticky )
-            throws AuthException, SimpleDBException, BackplaneServerException {
+            throws AuthException, MessageException, BackplaneServerException {
 
         final TimerContext context = getBusMessagesTime.time();
 
@@ -212,7 +212,7 @@ public class Backplane1Controller {
             @RequestParam(required = false) String callback,
             @RequestParam(value = "since", required = false) String since,
             @RequestParam(value = "sticky", required = false) String sticky )
-            throws SimpleDBException, AuthException, BackplaneServerException {
+            throws MessageException, AuthException, BackplaneServerException {
 
         logger.debug("request started");
 
@@ -236,7 +236,7 @@ public class Backplane1Controller {
             @RequestHeader(value = "Authorization", required = false) String basicAuth,
             @RequestBody List<Map<String,Object>> messages,
             @PathVariable String bus,
-            @PathVariable String channel) throws AuthException, SimpleDBException, BackplaneServerException {
+            @PathVariable String channel) throws AuthException, MessageException, BackplaneServerException {
 
         checkAuth(basicAuth, bus, BusConfig1.BUS_PERMISSION.POST);
 
@@ -408,7 +408,7 @@ public class Backplane1Controller {
     	return newChannel;
     }
 
-    private String getChannelMessages(final String bus, final String channel, final String since, final String sticky) throws SimpleDBException, BackplaneServerException {
+    private String getChannelMessages(final String bus, final String channel, final String since, final String sticky) throws MessageException, BackplaneServerException {
 
         final TimerContext context = getChannelMessagesTime.time();
 
@@ -430,7 +430,7 @@ public class Backplane1Controller {
                 logger.error(errMsg, bpConfig.getDebugException(e));
                 throw new BackplaneServerException(errMsg, e);
             }
-        } catch (SimpleDBException sdbe) {
+        } catch (MessageException sdbe) {
             throw sdbe;
         } catch (BackplaneServerException bse) {
             throw bse;

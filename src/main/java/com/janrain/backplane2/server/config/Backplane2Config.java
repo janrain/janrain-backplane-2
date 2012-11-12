@@ -21,7 +21,7 @@ import com.janrain.backplane2.server.BackplaneServerException;
 import com.janrain.backplane2.server.V2MessageProcessor;
 import com.janrain.backplane2.server.dao.DAOFactory;
 import com.janrain.cache.CachedL1;
-import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.commons.message.MessageException;
 import com.janrain.commons.util.AwsUtility;
 import com.janrain.commons.util.InitSystemProps;
 import com.janrain.crypto.HmacHashUtils;
@@ -89,7 +89,7 @@ public class Backplane2Config {
 
     /**
      * @return the server default max message value per channel
-     * @throws SimpleDBException
+     * @throws MessageException
      */
     public long getDefaultMaxMessageLimit() {
         Long max = Long.valueOf(cachedGet(BpServerConfig.Field.DEFAULT_MESSAGES_MAX));
