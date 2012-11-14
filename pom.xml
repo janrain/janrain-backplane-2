@@ -24,7 +24,7 @@
 	<packaging>war</packaging>
   <version>${project.version}</version>
 	<properties>
-    <project.version>BP_2_0.2012.46_RC2</project.version>
+    <project.version>BP_2_0.2012.45_RC1</project.version>
 		<org.springframework.version>3.0.3.RELEASE</org.springframework.version>
 		<org.slf4j.version>1.5.10</org.slf4j.version>
     	<powermock.version>1.4.5</powermock.version>
@@ -277,7 +277,12 @@
             <artifactId>curator-recipes</artifactId>
             <version>1.1.15</version>
         </dependency>
-    </dependencies>
+        <dependency>
+        	<groupId>com.google.javascript</groupId>
+        	<artifactId>closure-compiler</artifactId>
+        	<version>rr2079.1</version>
+        </dependency>
+	</dependencies>
     <repositories>
         <!-- For Hibernate Validator -->
         <repository>
@@ -431,6 +436,65 @@
                     </replacements>
                 </configuration>
             </plugin>
+            		<plugin>
+      	<groupId>org.codehaus.mojo</groupId>
+      	<artifactId>exec-maven-plugin</artifactId>
+      	<version>1.2.1</version>
+          <executions>
+            <execution>
+              <id>shrink-js1</id>
+              <phase>prepare-package</phase>
+              <goals>
+                <goal>exec</goal>
+              </goals>
+      	<configuration>
+           <executable>java</executable>
+             <workingDirectory>${project.dir}</workingDirectory>
+            <arguments>
+              <argument>-classpath</argument>
+              <classpath>
+                <dependency>args4j:args4j</dependency>
+                <dependency>com.google.guava:guava</dependency>
+                <dependency>com.google.javascript:closure-compiler</dependency>
+              </classpath>
+              <argument>com.google.javascript.jscomp.CommandLineRunner</argument>
+              <argument>--compilation_level</argument>
+              <argument>SIMPLE_OPTIMIZATIONS</argument>
+              <argument>--js</argument>
+              <argument>src/main/webapp/static/backplane.js</argument>
+              <argument>--js_output_file</argument>
+              <argument>target/${project.artifactId}-${project.version}/static/backplane.js</argument>
+            </arguments>
+          </configuration>
+            </execution>
+           <execution>
+              <id>shrink-js2</id>
+              <phase>prepare-package</phase>
+              <goals>
+                <goal>exec</goal>
+              </goals>
+      	<configuration>
+           <executable>java</executable>
+             <workingDirectory>${project.dir}</workingDirectory>
+            <arguments>
+              <argument>-classpath</argument>
+              <classpath>
+                <dependency>args4j:args4j</dependency>
+                <dependency>com.google.guava:guava</dependency>
+                <dependency>com.google.javascript:closure-compiler</dependency>
+              </classpath>
+              <argument>com.google.javascript.jscomp.CommandLineRunner</argument>
+              <argument>--compilation_level</argument>
+              <argument>SIMPLE_OPTIMIZATIONS</argument>
+              <argument>--js</argument>
+              <argument>src/main/webapp/static/backplane2.js</argument>
+              <argument>--js_output_file</argument>
+              <argument>target/${project.artifactId}-${project.version}/static/backplane2.js</argument>
+            </arguments>
+          </configuration>
+            </execution>
+          </executions>
+      </plugin>
         </plugins>
 	</build>
 </project>
