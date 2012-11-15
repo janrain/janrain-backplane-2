@@ -253,8 +253,13 @@ public class Backplane1Controller {
                 throw new BackplaneServerException("Message limit exceeded for this channel");
             }
 
+            BusConfig1 busConfig = DaoFactory.getBusDAO().get(bus);
+
             for(Map<String,Object> messageData : messages) {
-                BackplaneMessage message = new BackplaneMessage(bus, channel, messageData);
+                BackplaneMessage message = new BackplaneMessage(bus, channel,
+                        busConfig.getRetentionTimeSeconds(),
+                        busConfig.getRetentionTimeStickySeconds(),
+                        messageData);
                 backplaneMessageDAO.persist(message);
             }
 
