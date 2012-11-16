@@ -274,7 +274,14 @@ Backplane.loadChannelFromCookie = function() {
     var parts = match[1].split(":");
     this.token = decodeURIComponent(parts[0]);
     this.channelName = decodeURIComponent(parts[1]);
-    if (this.token.length < 20 || this.channelName.length < 30) {
+    // XXX: migration: the refresh token was not saved by older
+    // versions of this code (remove this check eventually).
+    if (typeof parts[2] != "undefined") {
+        this.log("found refresh token in cookie")
+        this.refresh_token = decodeURIComponent(parts[2]);
+    }
+    if (this.token.length < 20 || this.channelName.length < 30 ||
+      typeof parts[2] != "undefined" && this.refresh_token.length < 20) {
         this.error("backplane2-channel value: '" + match[1] + "' is corrupt");
     } else {
         this.log("retrieved token and channel from cookie");
@@ -285,37 +292,74 @@ Backplane.loadChannelFromCookie = function() {
 
 Backplane.setCookieChannel = function() {
     document.cookie = "backplane2-channel=" + encodeURIComponent(this.token) + ":" +
-        encodeURIComponent(this.channelName) + ";expires=" + this.config.channelExpires + ";path=/";
+        encodeURIComponent(this.channelName) + ":" + encodeURIComponent(this.refresh_token) +
+        ";expires=" + this.config.channelExpires + ";path=/";
 };
 
 Backplane.resetCookieChannel = function() {
     this.channelName = null;
     this.token = null;
+    this.refresh_token = null;
     this.setCookieChannel();
     // make the async call to retrieve a server generated channel
     this.fetchNewChannel();
 };
 
-Backplane.fetchNewChannel = function() {
-    var oldScript = document.getElementById('fetchChannelId');
+Backplane.makeCall = function(url, type, charset) {
+    var id = type + "Id";
+
     // cleanup old script if it exists to prevent memory leak
-    while (oldScript && oldScript.parentNode) {
+    var oldScript;
+    while (oldScript = document.getElementById(id)) {
         oldScript.parentNode.removeChild(oldScript);
         for (var prop in oldScript) {
             delete oldScript[prop];
         }
-        oldScript = document.getElementById('fetchChannelId')
     }
 
     var script = document.createElement("script");
-    script.src =  this.config.serverBaseURL + "/token?callback=Backplane.finishInit&bus=" + this.config.busName + "&rnd=" + Math.random();;
     script.type = "text/javascript";
-    script.id = 'fetchChannelId';
+    script.id = id;
+    if (typeof charset != "undefined") {
+        script.charset = charset;
+    }
+    script.src = url;
     var firstScript = document.getElementsByTagName("script")[0];
     firstScript.parentNode.insertBefore(script, firstScript);
-
 };
 
+Backplane.fetchNewChannel = function() {
+    var url = this.config.serverBaseURL + "/token?callback=Backplane.finishInit&bus=" + this.config.busName + "&rnd=" + Math.random();
+    Backplane.makeCall(url, "fetchNewChannel");
+};
+
+Backplane.refreshToken = function() {
+    var url = this.config.serverBaseURL + "/token?callback=Backplane.refreshTokenResponse&refresh_token=" + this.refresh_token + "&rnd=" + Math.random();
+    Backplane.makeCall(url, "refreshToken");
+};
+
+/**
+ * Callback function for token refresh request
+ * @param tokenPayload in the form {"token_type":"Bearer","access_token":"AAWBuJ1H2OjNvfK2oJXyXh",
+ *      "expires_in":3600,"scope":"bus:test-bus channel:XUw4aR074KGMit1lHepKOKAQZtBwxSUt",
+ *      "refresh_token":"ARXU21NC8gLdKwIM6SZIf0"}
+ */
+Backplane.refreshTokenResponse = function(tokenPayload) {
+    if (typeof tokenPayload.error_description != "undefined") {
+        if (tokenPayload.error_description === "invalid token") {
+            this.log("received invalid token error from server when refreshing access token; requesting new access token");
+            this.resetCookieChannel();
+        } else {
+            this.log("received unexpected error from server when refreshing access token: " + tokenPayload.error_description);
+        }
+        return;
+    }
+
+    this.log("received refreshed access token from server");
+    this.token = tokenPayload.access_token;
+    this.refresh_token = tokenPayload.refresh_token;
+    this.setCookieChannel();
+}
 
 Backplane.normalizeURL = function(rawURL) {
     return rawURL.replace(/^\s*(https?:\/\/)?(.*?)[\s\/]*$/, function(match, proto, uri){
@@ -352,27 +396,9 @@ Backplane.calcTimeout = function() {
     return (timeout * 1000);
 };
 
-
 Backplane.fetchMessages = function() {
-
-    var oldScript;
-    // cleanup old script if it exists to prevent memory leak
-    while (oldScript = document.getElementById('fetchMessagesId')) {
-        oldScript.parentNode.removeChild(oldScript);
-        for (var prop in oldScript) {
-            delete oldScript[prop];
-        }
-    }
-    this.initID = Math.random(); 
-    
-    var script = document.createElement("script");
-    script.type = "text/javascript";
-    script.id = 'fetchMessagesId';
-    script.charset = "utf-8";
-    script.src = Backplane.generateNextFrameURL();
-    var firstScript = document.getElementsByTagName("script")[0];
-    firstScript.parentNode.insertBefore(script, firstScript);
-
+    var url = Backplane.generateNextFrameURL();
+    Backplane.makeCall(url, "fetchMessages", "utf-8");
 }
 
 Backplane.request = function() {
@@ -398,6 +424,26 @@ Backplane.request = function() {
 Backplane.response = function(messageFrame) {
     var self = this;
     this.stopTimer("watchdog");
+
+    if (typeof messageFrame.error_description != "undefined") {
+        if (messageFrame.error_description === "invalid token") {
+            this.log("received invalid token error from server when retrieving messages");
+            if (this.refresh_token) {
+                this.log("refreshing access token");
+                this.refreshToken();
+            } else {
+                this.log("refresh token is not available; requesting new access token");
+                this.resetCookieChannel();
+            }
+        } else {
+            this.log("received unexpected error from server when retrieving messages: " + messageFrame.error_description);
+            this.log("...trying again");
+        }
+        // Start the request-response loop again in case the above
+        // call results in a (transient) error.
+        this.request();
+        return;
+    }
 
     if (this.firstFrameReceived === false) {
         if (typeof this.config.initFrameFilter != "undefined") {
