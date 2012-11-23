@@ -22,14 +22,16 @@
 	<artifactId>backplane-server</artifactId>
 	<name>backplane-server</name>
 	<packaging>war</packaging>
-  <version>${project.version}</version>
+    <version>${project.version}</version>
+
 	<properties>
-    <project.version>BP_2_0.2012.45_RC1</project.version>
-		<org.springframework.version>3.0.3.RELEASE</org.springframework.version>
-		<org.slf4j.version>1.5.10</org.slf4j.version>
-    	<powermock.version>1.4.5</powermock.version>
-  		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding> 
+        <project.version>BP_2_0.2012.45_RC1</project.version>
+        <org.springframework.version>3.0.3.RELEASE</org.springframework.version>
+        <org.slf4j.version>1.5.10</org.slf4j.version>
+        <powermock.version>1.4.5</powermock.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
+
 	<dependencies>
 		<!-- Spring -->
         <dependency>
@@ -54,7 +56,6 @@
 			<artifactId>javax.inject</artifactId>
 			<version>1</version>
 		</dependency>
-			
 
 		<!-- Logging -->
 		<dependency>
@@ -96,7 +97,7 @@
 			<artifactId>hibernate-validator</artifactId>
 			<version>4.0.2.GA</version>
 		</dependency>
-		
+
 		<!-- URL Rewrite -->
 		<dependency>
 			<groupId>org.tuckey</groupId>
@@ -122,6 +123,7 @@
 			<artifactId>jstl</artifactId>
 			<version>1.2</version>
 		</dependency>
+
 		<!--  for UriBuilder utility class -->
 		<dependency>
 			<groupId>javax.ws.rs</groupId>
@@ -212,6 +214,7 @@
             <artifactId>aws-java-sdk</artifactId>
             <version>1.2.9</version>
         </dependency>
+
         <!-- metrics -->
         <dependency>
             <groupId>com.yammer.metrics</groupId>
@@ -239,12 +242,14 @@
             <artifactId>scala-library</artifactId>
             <version>2.7.2</version>
         </dependency>
+
          <!-- supersimpledb -->
         <dependency>
             <groupId>com.janrain.commons.supersimpledb</groupId>
             <artifactId>commons-supersimpledb</artifactId>
             <version>1.0.27</version>
         </dependency>
+
         <!-- intellij annotations library for @NotNull and @Nullable -->
         <dependency>
             <groupId>org.kohsuke.jetbrains</groupId>
@@ -270,19 +275,14 @@
             <groupId>redis.clients</groupId>
             <artifactId>jedis</artifactId>
             <version>2.1.0.a</version>
-
         </dependency>
         <dependency>
             <groupId>com.netflix.curator</groupId>
             <artifactId>curator-recipes</artifactId>
             <version>1.1.15</version>
         </dependency>
-        <dependency>
-        	<groupId>com.google.javascript</groupId>
-        	<artifactId>closure-compiler</artifactId>
-        	<version>rr2079.1</version>
-        </dependency>
 	</dependencies>
+
     <repositories>
         <!-- For Hibernate Validator -->
         <repository>
@@ -342,8 +342,8 @@
             <id>codehaus-release</id>
             <url>http://repository.codehaus.org</url>
         </repository>
-
     </repositories>
+
 	<build>
         <plugins>
             <plugin>
@@ -355,22 +355,7 @@
                     <showWarnings>true</showWarnings>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-war-plugin</artifactId>
-                <configuration>
-                    <warName>backplane-server-${project.version}</warName>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>prepare-war</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>exploded</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -380,6 +365,93 @@
                         <phase>install</phase>
                         <goals>
                             <goal>sources</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <!-- closure-compiler and its dependencies -->
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.google.javascript</groupId>
+                                    <artifactId>closure-compiler</artifactId>
+                                    <version>rr2079.1</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>target/builddependency</outputDirectory>
+                                    <destFileName>closure-compiler.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>args4j</groupId>
+                                    <artifactId>args4j</artifactId>
+                                    <version>2.0.12</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>target/builddependency</outputDirectory>
+                                    <destFileName>args4j.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.google.guava</groupId>
+                                    <artifactId>guava</artifactId>
+                                    <version>r07</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>target/builddependency</outputDirectory>
+                                    <destFileName>guava.jar</destFileName>
+                                </artifactItem>
+
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <id>shrink-js</id>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <target>
+                                <echo message="Minifying backplane*.js files" />
+                                <mkdir dir="target/generated/static"/>
+                                <apply executable="java" failOnError="true">
+                                    <arg line="-cp target/builddependency/args4j.jar:target/builddependency/guava.jar:target/builddependency/closure-compiler.jar com.google.javascript.jscomp.CommandLineRunner --compilation_level SIMPLE_OPTIMIZATIONS --charset UTF-8 --js " />
+                                    <fileset dir="src/main/webapp/static" includes="**/backplane*.js" />
+                                    <redirector>
+                                        <outputmapper id="out" type="glob" from="*.js" to="target/generated/static/*.js" />
+                                    </redirector>
+                                </apply>
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <configuration>
+                    <warName>backplane-server-${project.version}</warName>
+                    <webResources>
+                        <resource>
+                            <!-- Minified JS is placed in this by the antrun task -->
+                            <directory>target/generated</directory>
+                        </resource>
+                    </webResources>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-war</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>exploded</goal>
                         </goals>
                     </execution>
                 </executions>
@@ -436,65 +508,6 @@
                     </replacements>
                 </configuration>
             </plugin>
-            		<plugin>
-      	<groupId>org.codehaus.mojo</groupId>
-      	<artifactId>exec-maven-plugin</artifactId>
-      	<version>1.2.1</version>
-          <executions>
-            <execution>
-              <id>shrink-js1</id>
-              <phase>prepare-package</phase>
-              <goals>
-                <goal>exec</goal>
-              </goals>
-      	<configuration>
-           <executable>java</executable>
-             <workingDirectory>${project.dir}</workingDirectory>
-            <arguments>
-              <argument>-classpath</argument>
-              <classpath>
-                <dependency>args4j:args4j</dependency>
-                <dependency>com.google.guava:guava</dependency>
-                <dependency>com.google.javascript:closure-compiler</dependency>
-              </classpath>
-              <argument>com.google.javascript.jscomp.CommandLineRunner</argument>
-              <argument>--compilation_level</argument>
-              <argument>SIMPLE_OPTIMIZATIONS</argument>
-              <argument>--js</argument>
-              <argument>src/main/webapp/static/backplane.js</argument>
-              <argument>--js_output_file</argument>
-              <argument>target/${project.artifactId}-${project.version}/static/backplane.js</argument>
-            </arguments>
-          </configuration>
-            </execution>
-           <execution>
-              <id>shrink-js2</id>
-              <phase>prepare-package</phase>
-              <goals>
-                <goal>exec</goal>
-              </goals>
-      	<configuration>
-           <executable>java</executable>
-             <workingDirectory>${project.dir}</workingDirectory>
-            <arguments>
-              <argument>-classpath</argument>
-              <classpath>
-                <dependency>args4j:args4j</dependency>
-                <dependency>com.google.guava:guava</dependency>
-                <dependency>com.google.javascript:closure-compiler</dependency>
-              </classpath>
-              <argument>com.google.javascript.jscomp.CommandLineRunner</argument>
-              <argument>--compilation_level</argument>
-              <argument>SIMPLE_OPTIMIZATIONS</argument>
-              <argument>--js</argument>
-              <argument>src/main/webapp/static/backplane2.js</argument>
-              <argument>--js_output_file</argument>
-              <argument>target/${project.artifactId}-${project.version}/static/backplane2.js</argument>
-            </arguments>
-          </configuration>
-            </execution>
-          </executions>
-      </plugin>
         </plugins>
 	</build>
 </project>
