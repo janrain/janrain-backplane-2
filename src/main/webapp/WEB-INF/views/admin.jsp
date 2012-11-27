@@ -1,4 +1,4 @@
-<%@ page import="com.janrain.utils.BackplaneSystemProps" %>
+<%@ page import="com.janrain.backplane.config.BackplaneSystemProps" %>
 <%@ include file="/WEB-INF/views/include.jsp"
 %><%@page contentType="text/html;charset=UTF-8"
 %><%--

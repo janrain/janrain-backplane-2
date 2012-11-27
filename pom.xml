@@ -240,14 +240,12 @@
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
-            <version>2.7.2</version>
+            <version>2.9.2</version>
         </dependency>
-
-         <!-- supersimpledb -->
         <dependency>
-            <groupId>com.janrain.commons.supersimpledb</groupId>
-            <artifactId>commons-supersimpledb</artifactId>
-            <version>1.0.27</version>
+               <groupId>com.janrain</groupId>
+               <artifactId>federate-utils</artifactId>
+               <version>1.2.0</version>
         </dependency>
 
         <!-- intellij annotations library for @NotNull and @Nullable -->
@@ -322,7 +320,7 @@
                 <enabled>false</enabled>
             </snapshots>
         </repository>
-        <!-- Janrain's supersimpledb dependency -->
+        <!-- Janrain's dependencies -->
         <repository>
             <id>janrain-repo</id>
             <url>https://repository-janrain.forge.cloudbees.com/release</url>

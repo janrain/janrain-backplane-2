@@ -16,7 +16,7 @@
   ~ limitations under the License.
   --%>
 
-<jsp:useBean id="user" class="com.janrain.utils.AdminData" scope="request"/>
+<jsp:useBean id="user" class="com.janrain.backplane.config.AdminData" scope="request"/>
 <jsp:setProperty name="user" property="*"/>
 
 <html>

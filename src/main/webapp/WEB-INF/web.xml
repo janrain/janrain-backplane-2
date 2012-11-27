@@ -48,20 +48,18 @@
     <filter>
         <description>Wrap all replies in callback function, if it exists</description>
         <filter-name>jsonpFilter</filter-name>
-        <filter-class>com.janrain.servlet.JsonpCallbackFilter</filter-class>
+        <filter-class>com.janrain.backplane.servlet.JsonpCallbackFilter</filter-class>
     </filter>
     <filter-mapping>
         <filter-name>jsonpFilter</filter-name>
         <url-pattern>/*</url-pattern>
     </filter-mapping>
 
-    <!--todo extract com.janrain.[simpledb|message|servlet] as modules/libraries -->
-
     <!-- Enable logger for debugging / development ONLY!!!!
      <filter>
          <description>FOR DEBUGGING ONLY: Writes the contents of each response to the log</description>
          <filter-name>logger</filter-name>
-         <filter-class>com.janrain.servlet.debug.DebugResponseLoggingFilter</filter-class>
+         <filter-class>com.janrain.backplane.servlet.debug.DebugResponseLoggingFilter</filter-class>
      </filter>
      <filter-mapping>
          <filter-name>logger</filter-name>
@@ -72,7 +70,7 @@
     <filter>
         <description>Adds HTTP headers to send back with static content</description>
         <filter-name>ResponseHeaderFilter</filter-name>
-        <filter-class>com.janrain.servlet.ResponseHeaderFilter</filter-class>
+        <filter-class>com.janrain.backplane.servlet.ResponseHeaderFilter</filter-class>
         <init-param>
             <!-- Allow browsers to cache content for 1 hour -->
             <param-name>Cache-Control</param-name>
@@ -100,7 +98,7 @@
 
     <filter>
         <filter-name>IPRangeFilter</filter-name>
-        <filter-class>com.janrain.servlet.IPRangeFilter</filter-class>
+        <filter-class>com.janrain.backplane.servlet.IPRangeFilter</filter-class>
     </filter>
 
     <filter-mapping>

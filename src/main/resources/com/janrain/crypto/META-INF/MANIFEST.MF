@@ -1,4 +1,4 @@
 Manifest-Version: 1.0
 Class-Path: commons-codec-1.2.jar log4j-1.2.16.jar
-Main-Class: com.janrain.crypto.HmacHashUtils
+Main-Class: com.janrain.backplane.common.HmacHashUtils
 
