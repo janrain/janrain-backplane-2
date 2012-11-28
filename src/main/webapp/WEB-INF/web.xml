@@ -86,10 +86,6 @@
         <description>See 'urlrewrite.xml' config file -- allows us to shorten the required URL path</description>
         <filter-name>UrlRewriteFilter</filter-name>
         <filter-class>org.tuckey.web.filters.urlrewrite.UrlRewriteFilter</filter-class>
-        <init-param>
-            <param-name>confPath</param-name>
-            <param-value>/WEB-INF/classes/urlrewrite.xml</param-value>
-        </init-param>
     </filter>
     <filter-mapping>
         <filter-name>UrlRewriteFilter</filter-name>
