@@ -277,7 +277,8 @@ public class ProvisioningController2 {
                 } else if (config instanceof BusConfig2) {
                     BusOwner user = BP2DAOs.getBusOwnerDAO().get(config.get(BusConfig2.Field.OWNER.getFieldName()));
                     if (user == null) {
-                        updateStatus = "Invalid bus owner: " + config.get(BusConfig2.Field.OWNER.getFieldName());
+                        String fieldName = config.get(BusConfig2.Field.OWNER.getFieldName());
+                        throw new BackplaneServerException("Invalid bus owner: " + fieldName);
                     }
                 }
 
