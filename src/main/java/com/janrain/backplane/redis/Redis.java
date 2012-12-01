@@ -17,6 +17,7 @@
 package com.janrain.backplane.redis;
 
 import com.janrain.backplane.config.BackplaneSystemProps;
+import com.janrain.commons.util.Pair;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.recipes.cache.ChildData;
 import com.netflix.curator.framework.recipes.cache.PathChildrenCache;
@@ -34,7 +35,10 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -217,7 +221,7 @@ public class Redis implements PathChildrenCacheListener {
         try {
             return jedis.zcard(key);
         } finally {
-            getReadPool().returnResource(jedis);
+            getReadPool().getRight().returnResource(jedis);
         }
     }
 
@@ -337,8 +341,8 @@ public class Redis implements PathChildrenCacheListener {
     //private String[] currentRedisServerForReads;
     private String currentRedisServerForWrites;
 
-    private final JedisPool poolForWrites;
-    private final ArrayList<JedisPool> poolForReads = new ArrayList<JedisPool>();
+    private final Pair<String,JedisPool> poolForWrites;
+    private final ArrayList<Pair<String,JedisPool>> poolForReads = new ArrayList<Pair<String, JedisPool>>();
 
     private static Redis instance = new Redis();
     private final String REDIS_LOCK = "/redislock";
@@ -374,7 +378,7 @@ public class Redis implements PathChildrenCacheListener {
             }
         }
 
-        poolForWrites = new JedisPool(jedisPoolConfig, args[0], port);
+        poolForWrites = new Pair<String, JedisPool>(args[0] + ":" + port, new JedisPool(jedisPoolConfig, args[0], port));
 
         redisServerConfig = System.getProperty(BackplaneSystemProps.REDIS_SERVER_READS);
 
@@ -391,7 +395,7 @@ public class Redis implements PathChildrenCacheListener {
                 try {
                     port = Integer.parseInt(args[1]);
                     //currentRedisServerForReads[i] = args[0];
-                    poolForReads.add(new JedisPool(jedisPoolConfig, args[0], port));
+                    poolForReads.add(new Pair<String, JedisPool>(args[0] + ":" + port, new JedisPool(jedisPoolConfig, args[0], port)));
                 } catch (NumberFormatException e) {
                     logger.error("invalid Redis server configuration: " + redisServerConfig);
                     System.exit(1);
@@ -402,32 +406,33 @@ public class Redis implements PathChildrenCacheListener {
     }
 
     
-    private JedisPool getWritePool() {
+    private Pair<String, JedisPool> getWritePool() {
         return poolForWrites;
     }
 
-    private JedisPool getReadPool() {
+    private Pair<String, JedisPool> getReadPool() {
         Random random = new Random();
         return poolForReads.get(random.nextInt(poolForReads.size()));
     }
 
-    private Jedis getJedisFromPool(JedisPool pool) {
+    private Jedis getJedisFromPool(Pair<String,JedisPool> poolInfo) {
         try {
             logger.debug("attempting to get resource from pool");
-            Jedis jedis = pool.getResource();
+            Jedis jedis = poolInfo.getRight().getResource();
             synchronized (jedis) {
-                checkedOutJedises.put(jedis, pool);
-                logger.debug("jedis " + jedis.toString() + " checked out from pool " + pool.toString());
+                checkedOutJedises.put(jedis, poolInfo.getRight());
+                logger.debug("jedis " + jedis.getClient().getHost() + " checked out from pool " + poolInfo.getLeft());
             }
             return jedis;
         } catch (RuntimeException e) {
-            logger.warn("an error occurred while trying to retrieve connection to redis");
+            logger.warn("error retrieving connection to redis pool " + poolInfo.getLeft() + " : " + e.getMessage());
             throw e;
         }
     }
 
     private ConcurrentHashMap<Jedis, JedisPool> checkedOutJedises = new ConcurrentHashMap<Jedis, JedisPool>();
     private final Gauge checkedOutJedisesCounterGauge = Metrics.newGauge(new MetricName("redis", this.getClass().getName().replace(".","_"), "map_db_connections"), new Gauge<Integer>() {
+        @Override
         public Integer value() {
             return checkedOutJedises.size();
         }
