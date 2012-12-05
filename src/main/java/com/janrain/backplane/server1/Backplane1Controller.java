@@ -303,8 +303,9 @@ public class Backplane1Controller {
      */
     @ExceptionHandler
     @ResponseBody
-    public Map<String, String> handle(final Exception e, HttpServletResponse response) {
-        logger.error("Error handling backplane request: " + e.getMessage(), bpConfig.getDebugException(e));
+    public Map<String, String> handle(final Exception e, HttpServletRequest request, HttpServletResponse response) {
+    	String path = request.getPathInfo();
+        logger.error("Error handling backplane request for " + path + ": " + e.getMessage(), bpConfig.getDebugException(e));
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         return new HashMap<String,String>() {{
             put(ERR_MSG_FIELD, bpConfig.isDebugMode() ? e.getMessage() : "Error processing request.");
