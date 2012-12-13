@@ -353,7 +353,7 @@ Backplane.request = function() {
                var now = new Date();
                if (now > cacheExpires) {
                  Backplane.log("cache expired");
-                 this.invalidateCache();
+                 Backplane.invalidateCache();
                } else {
                  this.cachedMessages = JSON.parse(localStorage.getItem("backplaneCachedMessages"));
                  this.cachedMessagesIndex = JSON.parse(localStorage.getItem("backplaneCachedMessagesIndex"));
