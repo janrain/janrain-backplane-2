@@ -38,7 +38,7 @@ window.Backplane = window.Backplane || (function() {
             console.error("Backplane ERROR: " + msg);
         }
     }
-    BP.version = "1.2.3";
+    BP.version = "1.2.4";
     BP.channelByBus = {};
     BP.config = {};
     BP.initialized = false;
@@ -352,18 +352,18 @@ Backplane.request = function() {
                var cacheExpires = Date.parse(cacheExpiresString);
                var now = new Date();
                if (now > cacheExpires) {
-                 Backplane.log("cache expired");
-                 Backplane.invalidateCache();
+                 self.log("cache expired");
+                 self.invalidateCache();
                } else {
-                 this.cachedMessages = JSON.parse(localStorage.getItem("backplaneCachedMessages"));
-                 this.cachedMessagesIndex = JSON.parse(localStorage.getItem("backplaneCachedMessagesIndex"));
-                 if (this.cachedMessages) {
+                 self.cachedMessages = JSON.parse(localStorage.getItem("backplaneCachedMessages"));
+                 self.cachedMessagesIndex = JSON.parse(localStorage.getItem("backplaneCachedMessagesIndex"));
+                 if (self.cachedMessages) {
                     var messages = []; 
-                    for (var i=0; i<this.cachedMessagesIndex.length; i++) {
-                       messages[i] = this.cachedMessages[this.cachedMessagesIndex[i]];
+                    for (var i=0; i<self.cachedMessagesIndex.length; i++) {
+                       messages[i] = self.cachedMessages[self.cachedMessagesIndex[i]];
                     }
-                    Backplane.log(messages.length + " message(s) in cache");
-                    Backplane.response(messages);
+                    self.log(messages.length + " message(s) in cache");
+                    self.response(messages);
                     return;
                  }
                }
