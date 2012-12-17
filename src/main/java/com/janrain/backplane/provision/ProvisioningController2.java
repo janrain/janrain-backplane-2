@@ -296,7 +296,6 @@ public class ProvisioningController2 {
         Map<String,String> result = new LinkedHashMap<String, String>();
         bpConfig.checkAdminAuth(grantRequest.getAdmin(), grantRequest.getSecret());
 
-        //todo: validate bus
         for(Map.Entry<String,String> newGrantEntry : grantRequest.getGrants().entrySet()) {
             String clientId = newGrantEntry.getKey();
             String buses = newGrantEntry.getValue();
@@ -304,11 +303,13 @@ public class ProvisioningController2 {
                 if (null == BP2DAOs.getClientDAO().get(clientId)) {
                     result.put(clientId, "invalid client_id");
                 } else {
+                    List<String> busesAsList = Scope.getScopesAsList(buses);
+                    validateBuses(busesAsList);
                     if (addRevoke) {
-                        addGrant(grantRequest.getAdmin(), clientId, buses);
+                        addGrant(grantRequest.getAdmin(), clientId, busesAsList);
                         result.put(clientId, "GRANT_UPDATE_SUCCESS");
                     } else {
-                        revokeBuses(clientId, buses);
+                        revokeBuses(clientId, busesAsList);
                         result.put(clientId, "GRANT_UPDATE_SUCCESS");
                     }
                 }
@@ -319,7 +320,15 @@ public class ProvisioningController2 {
         return result;
     }
 
-    private void addGrant(String issuer, String clientId, String buses) throws MessageException, BackplaneServerException {
+    private void validateBuses(List<String> buses) throws BackplaneServerException {
+        for(String bus : buses) {
+            if (null == BP2DAOs.getBusDao().get(bus)) {
+                throw new BackplaneServerException("Invalid bus: " + bus);
+            }
+        }
+    }
+
+    private void addGrant(String issuer, String clientId, List<String> buses) throws MessageException, BackplaneServerException {
         Grant grant = new Grant.Builder(
                 GrantType.CLIENT_CREDENTIALS,
                 GrantState.ACTIVE,
@@ -330,7 +339,7 @@ public class ProvisioningController2 {
         BP2DAOs.getGrantDao().persist(grant);
     }
 
-    private void revokeBuses(String clientId, String buses) throws TokenException, MessageException, BackplaneServerException {
+    private void revokeBuses(String clientId, List<String> buses) throws TokenException, MessageException, BackplaneServerException {
         boolean updated = false;
         Scope busesToRevoke = new Scope(Scope.getEncodedScopesAsString(BackplaneMessage.Field.BUS, buses));
         if ( ! BP2DAOs.getGrantDao().revokeBuses(BP2DAOs.getGrantDao().getByClientId(clientId), buses) ) {

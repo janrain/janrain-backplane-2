@@ -56,7 +56,7 @@ public class RedisGrantDAO implements GrantDAO {
     }
 
     @Override
-    public boolean revokeBuses(List<Grant> grants, String buses) throws BackplaneServerException, TokenException {
+    public boolean revokeBuses(List<Grant> grants, List<String> buses) throws BackplaneServerException, TokenException {
         Scope busesToRevoke = new Scope(Scope.getEncodedScopesAsString(BackplaneMessage.Field.BUS, buses));
         boolean changes = false;
         for (Grant grant : grants) {

@@ -41,5 +41,5 @@ public interface GrantDAO extends DAO<Grant> {
      *
      *  @return true if any of the existing grants were updated, false if nothing was updated
      */
-    boolean revokeBuses(List<Grant> grants, String buses) throws BackplaneServerException, TokenException;
+    boolean revokeBuses(List<Grant> grants, List<String> buses) throws BackplaneServerException, TokenException;
 }
