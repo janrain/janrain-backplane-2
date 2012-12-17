@@ -84,28 +84,12 @@ public class MessageProcessor implements LeaderSelectorListener {
                     jedis = Redis.getInstance().getWriteJedis();
                     logger.debug("retrieved jedis connection: " + jedis.toString());
 
-                    // retrieve the latest 'live' message ID
-                    String latestMessageId = null;
-                    Set<String> latestMessageMetaSet = jedis.zrange(RedisBackplaneMessageDAO.V1_MESSAGES, -1, -1);
+                    // set watch on V1_LAST_ID
+                    // needs to be set before retrieving the value stored at this key
+                    jedis.watch(V1_LAST_ID);
 
-                    if (latestMessageMetaSet != null && !latestMessageMetaSet.isEmpty()) {
-                        String[] segs = latestMessageMetaSet.iterator().next().split(" ");
-                        if (segs.length == 3) {
-                            latestMessageId = segs[2];
-                        }
-                    }
-
-                    Pair<String, Date> lastIdAndDate =  new Pair<String, Date>("", new Date(0));
-                    try {
-                        lastIdAndDate = StringUtils.isEmpty(latestMessageId) ?
-                                new Pair<String, Date>("", new Date(0)) :
-                                new Pair<String, Date>(latestMessageId, DateTimeUtils.ISO8601.get().parse(latestMessageId.substring(0, latestMessageId.indexOf("Z") + 1)));
-                    } catch (Exception e) {
-                        //
-                    }
-
-                    // set watch on the messages sorted set of keys
-                    jedis.watch(RedisBackplaneMessageDAO.V1_MESSAGES);
+                    Pair<String,Date> lastIdAndDate = getLastMessageId(jedis);
+                    String newId = lastIdAndDate.getLeft();
 
                     // retrieve a handful of messages (ten) off the queue for processing
                     List<byte[]> messagesToProcess = jedis.lrange(RedisBackplaneMessageDAO.V1_MESSAGE_QUEUE.getBytes(), 0, 9);
@@ -119,6 +103,7 @@ public class MessageProcessor implements LeaderSelectorListener {
 
                         insertionTimes.clear();
 
+                        // <ATOMIC> - redis transaction
                         for (byte[] messageBytes : messagesToProcess) {
 
                             if (messageBytes != null) {
@@ -146,13 +131,12 @@ public class MessageProcessor implements LeaderSelectorListener {
                                     // arrived at the same time.
 
                                     lastIdAndDate = backplaneMessage.updateId(lastIdAndDate);
-                                    String newId = backplaneMessage.getIdValue();
+                                    newId = backplaneMessage.getIdValue();
 
                                     // messageTime is guaranteed to be a unique identifier of the message
                                     // because of the TOTAL ORDER mechanism above
                                     long messageTime = BackplaneMessage.getDateFromId(newId).getTime();
 
-                                    // <ATOMIC>
                                     // save the individual message by key
                                     transaction.set(RedisBackplaneMessageDAO.getKey(newId), BpSerialUtils.serialize(backplaneMessage));
                                     // set the message TTL
@@ -177,20 +161,20 @@ public class MessageProcessor implements LeaderSelectorListener {
 
                                     // pop one message off the queue - which will only happen if this transaction is successful
                                     transaction.lpop(RedisBackplaneMessageDAO.V1_MESSAGE_QUEUE);
-                                    // </ATOMIC>
 
                                     logger.info("pipelined message " + oldId + " -> " + newId);
                                 }
                             }
                         } // for messages
 
-                        Thread.sleep(150);
+                        transaction.set(V1_LAST_ID, newId);
 
                         logger.info("processing transaction with " + insertionTimes.size() + " message(s)");
                         if (transaction.exec() == null) {
                             // the transaction failed
                             continue;
                         }
+                        // </ATOMIC> - redis transaction
 
                         logger.info("flushed " + insertionTimes.size() + " messages");
                         long now = System.currentTimeMillis();
@@ -202,6 +186,8 @@ public class MessageProcessor implements LeaderSelectorListener {
                             }
                         }
                     } // messagesToProcess > 0
+
+                    Thread.sleep(150);
 
                 } catch (Exception e) {
                     try {
@@ -233,9 +219,44 @@ public class MessageProcessor implements LeaderSelectorListener {
         }
     }
 
+    private Pair<String,Date> getLastMessageId(Jedis jedis) {
+        // retrieve the latest 'live' message ID
+        String latestMessageId = jedis.get(V1_LAST_ID);
+        Date dateFromId = BackplaneMessage.getDateFromId(latestMessageId);
+        return StringUtils.isEmpty(latestMessageId) || null == dateFromId ?
+               getLastMessageIdLegacy(jedis) :
+               new Pair<String, Date>(latestMessageId, dateFromId);
+    }
+
+    private Pair<String,Date> getLastMessageIdLegacy(Jedis jedis) {
+        // retrieve the latest 'live' message ID
+        // old/legacy method, used as fallback with the deployment of the replacement method
+        // todo: remove after transition is completed
+        String latestMessageId = null;
+        Set<String> latestMessageMetaSet = jedis.zrange(RedisBackplaneMessageDAO.V1_MESSAGES, -1, -1);
+
+        if (latestMessageMetaSet != null && !latestMessageMetaSet.isEmpty()) {
+            String[] segs = latestMessageMetaSet.iterator().next().split(" ");
+            if (segs.length == 3) {
+                latestMessageId = segs[2];
+            }
+        }
+
+        try {
+            return StringUtils.isEmpty(latestMessageId) ?
+                    new Pair<String, Date>("", new Date(0)) :
+                    new Pair<String, Date>(latestMessageId, DateTimeUtils.ISO8601.get().parse(latestMessageId.substring(0, latestMessageId.indexOf("Z") + 1)));
+        } catch (Exception e) {
+            logger.warn("error retrieving last message ID and date from V1_MESSAGES: " + e.getMessage(), e);
+            return new Pair<String, Date>("", new Date(0));
+        }
+    }
+
     private static final Logger logger = Logger.getLogger(MessageProcessor.class);
 
     private final Histogram timeInQueue = Metrics.newHistogram(new MetricName("v1", this.getClass().getName().replace(".", "_"), "time_in_queue"));
+
+    private static final String V1_LAST_ID = "v1_last_id";
 
     @Override
     public void takeLeadership(CuratorFramework curatorFramework) throws Exception {
