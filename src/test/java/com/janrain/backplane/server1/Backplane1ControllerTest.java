@@ -91,54 +91,58 @@ public class Backplane1ControllerTest {
 
     @Test
     public void testGetChannel() throws Exception {
+        String[] versions = new String[]{"1.1", "1.2", "1.3"};
+        for (String version : versions) {
+            refreshRequestAndResponse();
+            request.setRequestURI("/" + version + "/bus/test/channel/test");
+            request.setMethod("GET");
 
-        refreshRequestAndResponse();
-        request.setRequestURI("/bus/test/channel/test");
-        request.setMethod("GET");
-
-        handlerAdapter.handle(request, response, controller);
-        logger.debug("testGetChannel() => " + response.getContentAsString());
-        assertTrue(response.getContentAsString().contains("[]"));
-
+            handlerAdapter.handle(request, response, controller);
+            logger.debug("testGetChannel() => " + response.getContentAsString());
+            assertTrue(response.getContentAsString().contains("[]"));
+        }
     }
 
     @Test
     public void testGetBus() throws Exception {
 
-        refreshRequestAndResponse();
-        BackplaneMessage message = null;
+        String[] versions = new String[]{"1.1", "1.2", "1.3"};
+        for (String version : versions) {
+            refreshRequestAndResponse();
+            BackplaneMessage message = null;
 
-        try {
+            try {
 
-            BP1DAOs.getUserDao().persist(new BP1User("testBusOwner", "busOwnerSecret"));
-            BP1DAOs.getBusDao().persist(new BusConfig1("test", "testBusOwner", "60", "28800"));
+                BP1DAOs.getUserDao().persist(new BP1User("testBusOwner", "busOwnerSecret"));
+                BP1DAOs.getBusDao().persist(new BusConfig1("test", "testBusOwner", "60", "28800"));
 
-            // encode un:pw
-            String credentials = "testBusOwner:busOwnerSecret";
+                // encode un:pw
+                String credentials = "testBusOwner:busOwnerSecret";
 
-            Map<String,Object> msg = new ObjectMapper().readValue(TEST_MSG, new TypeReference<Map<String,Object>>() {});
-            message = new BackplaneMessage("test", "test", DEFAULT_MESSAGE_RETENTION_SECONDS, MAX_MESSAGE_RETENTION_SECONDS, msg);
-            BP1DAOs.getMessageDao().persist(message);
+                Map<String, Object> msg = new ObjectMapper().readValue(TEST_MSG, new TypeReference<Map<String, Object>>() {
+                });
+                message = new BackplaneMessage("test", "test", DEFAULT_MESSAGE_RETENTION_SECONDS, MAX_MESSAGE_RETENTION_SECONDS, msg);
+                BP1DAOs.getMessageDao().persist(message);
 
-            Thread.sleep(1000);
+                Thread.sleep(1000);
 
-            String encodedCredentials = new String(Base64.encode(credentials.getBytes()));
-            request.setAuthType("BASIC");
-            request.addHeader("Authorization", "Basic " + encodedCredentials);
-            request.setRequestURI("/bus/test");
-            request.setMethod("GET");
+                String encodedCredentials = new String(Base64.encode(credentials.getBytes()));
+                request.setAuthType("BASIC");
+                request.addHeader("Authorization", "Basic " + encodedCredentials);
+                request.setRequestURI("/" + version + "/bus/test/channel/test");
+                request.setMethod("GET");
 
-            handlerAdapter.handle(request, response, controller);
-            logger.info("testGetBus() => " + response.getContentAsString());
-            assertFalse("passed", response.getContentAsString().contains("[]"));
+                handlerAdapter.handle(request, response, controller);
+                logger.info("testGetBus() => " + response.getContentAsString());
+                assertFalse("passed", response.getContentAsString().contains("[]"));
 
-        } finally {
-            BP1DAOs.getUserDao().delete("testBusOwner");
-            BP1DAOs.getBusDao().delete("test");
-            if (message != null) {
-                BP1DAOs.getMessageDao().delete(message.getIdValue());
+            } finally {
+                BP1DAOs.getUserDao().delete("testBusOwner");
+                BP1DAOs.getBusDao().delete("test");
+                if (message != null) {
+                    BP1DAOs.getMessageDao().delete(message.getIdValue());
+                }
             }
         }
-
     }
 }
