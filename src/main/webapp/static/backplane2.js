@@ -38,13 +38,14 @@ window.Backplane = window.Backplane || (function() {
             console.error("Backplane ERROR: " + msg);
         }
     }
-    BP.version = "2.0.1";
+    BP.version = "2.0.2";
     BP.token = null;
     BP.refresh_token = null;
     BP.channelName = null;
     BP.block = 0;
     BP.config = {};
     BP.initialized = false;
+    BP.runRequests = false;
     BP.firstFrameReceived = false;
     BP.cachedMessages = {};
     BP.cachedMessagesIndex = [];
@@ -133,6 +134,12 @@ Backplane.init = function(config) {
  */
 Backplane.subscribe = function(callback) {
     if (!this.initialized) return false;
+    if (!this.checkSubscribers()) {
+        // No subscribers means no request loop is running;
+        // start one up.
+        this.runRequests = true;
+        this.request();
+    }
     var id = (new Date()).valueOf() + Math.random();
     this.subscribers[id] = callback;
     //if the first frame has already been processed, catch this widget up
@@ -152,6 +159,10 @@ Backplane.subscribe = function(callback) {
 Backplane.unsubscribe = function(subscriptionID) {
     if (!this.initialized || !subscriptionID) return false;
     delete this.subscribers[subscriptionID];
+    if (!this.checkSubscribers()) {
+        // No more subscribers left; go to sleep.
+        this.runRequests = false;
+    }
 };
 
 /**
@@ -268,6 +279,14 @@ Backplane.getTS = function() {
     return Math.round((new Date()).valueOf() / 1000);
 };
 
+Backplane.checkSubscribers = function() {
+	var name;
+	for (name in this.subscribers) {
+		return true;
+	}
+	return false;
+};
+
 Backplane.loadChannelFromCookie = function() {
     var match = (document.cookie || "").match(/backplane2-channel=(.*?)(?:$|;)/);
     if (!match || !match[1]) return {};
@@ -367,6 +386,14 @@ Backplane.normalizeURL = function(rawURL) {
     });
 };
 
+/*
+ * Calculate amount of time after which the request will be sent.
+ *
+ * If a message is expected, we should poll more frequently, gradually
+ * slowing down, until we reach the maximum interval for frequent
+ * polling for expected messages (this.intervals.frequent).  After
+ * that, continue to slow down until we reach the regular interval.
+ */
 Backplane.calcTimeout = function() {
     var timeout, ts = this.getTS();
     if (this.block > 0) {
@@ -403,7 +430,7 @@ Backplane.fetchMessages = function() {
 
 Backplane.request = function() {
     var self = this;
-    if (!this.initialized) return false;
+    if (!this.initialized || !this.runRequests) return false;
     this.stopTimer("regular");
     this.stopTimer("watchdog");
     this.timers.regular = setTimeout(function() {
