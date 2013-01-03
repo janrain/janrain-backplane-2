@@ -94,7 +94,6 @@ Backplane.init = function(config) {
         return false;
     }
 
-    this.initialized = true;
     this.timers = {};
     this.config = config;
     this.config.serverBaseURL = this.normalizeURL(config.serverBaseURL);
@@ -229,7 +228,7 @@ Backplane.finishInit = function (initPayload) {
     this.setCookieChannel();
     this.channelID = this.generateChannelID();
     this.log("channelID = " + this.channelID);
-    this.subscribers={};
+    this.initialized = true;
     this.onInit();
     //this.request();
     this.fetchMessages();
