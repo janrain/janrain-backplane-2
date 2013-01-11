@@ -219,7 +219,7 @@ public class BackplaneMessage extends ExternalizableCore {
     }
 
     public static Date getDateFromId(String backplaneMessageId) {
-        if (backplaneMessageId == null) {
+        if (StringUtils.isBlank(backplaneMessageId)) {
             return null;
         }
 
