@@ -12,8 +12,9 @@
 window.Backplane = window.Backplane || (function() {
     // Backplane is a function that accepts a function to be run onInit
     var BP = function(fn) {
-        if (Backplane.getChannelID()) fn();
-        else {
+        if (Backplane.getChannelID()) {
+            fn();
+        } else {
             Backplane.onInit = (function() {
                 var original_onInit = Backplane.onInit;
                 return function() {
@@ -27,30 +28,34 @@ window.Backplane = window.Backplane || (function() {
         if (window.console && window.console.log) {
             console.log("Backplane: " + msg);
         }
-    }
+    };
     BP.warn = function(msg) {
         if (window.console && window.console.warn) {
-            console.warn("Backplane WARNING: " + msg)
+            console.warn("Backplane WARNING: " + msg);
         }
-    }
+    };
     BP.error = function(msg) {
         if (window.console && window.console.error) {
             console.error("Backplane ERROR: " + msg);
         }
-    }
-    BP.version = "2.0.2";
+    };
+    BP.version = "2.0.4";
     BP.token = null;
     BP.refresh_token = null;
     BP.channelName = null;
     BP.block = 0;
     BP.config = {};
-    BP.initialized = false;
     BP.runRequests = false;
     BP.firstFrameReceived = false;
-    BP.cachedMessages = {};
-    BP.cachedMessagesIndex = [];
-    BP.cacheMax = 0;
+    BP.replayOnPageLoad = false;
+    BP.memoryCachedMessages = {};
+    BP.memoryCachedMessagesIndex = [];
+    BP.cacheMax = 10;
     BP.subscribers = {};
+    BP.messageCacheIndexKey = "backplane2CachedMessagesIndex";
+    BP.messageCacheKey = "backplane2CachedMessages";
+    BP.messageCacheExpires = "backplane2CacheExpires";
+    BP.timers = {};
     BP.awaiting = {
         "since": 0,
         "until": 0,
@@ -75,17 +80,13 @@ window.Backplane = window.Backplane || (function() {
  *     serverBaseURL (required) - Base URL of Backplane Server
  *     busName (required) - Customer's backplane bus name
  *     channelExpires (optional) - set backplane2-channel cookie life span
- *     initFrameFilter (optional) - function to filter the first message frame
- *     cacheMax (optional) - how many messages to cache for late arriving widgets
+ *     cacheMax (optional) - how many messages to cache for late arriving widgets, default is 10
  *     block (optional) - how many seconds to hold connection open with server
+ *     replayOnPageLoad (optional) - replay all messages from long term cache on each page load, default is false
  */
 Backplane.init = function(config) {
     this.log("initializing");
     config = config || {};
-    if (this.initialized) {
-        this.log("library already initialized");
-        return false;
-    }
     if (!config.serverBaseURL) {
         this.error("must supply serverBaseURL");
         return false;
@@ -105,10 +106,11 @@ Backplane.init = function(config) {
     }
 
     this.loadChannelFromCookie();
-    
+
     this.cacheMax = config.cacheMax || this.cacheMax;
+    this.replayOnPageLoad = config.replayOnPageLoad || this.replayOnPageLoad;
     this.block = config.block || 0;
-    if (typeof this.config.channelExpires == "undefined") {
+    if (typeof this.config.channelExpires === "undefined") {
         var d = new Date();
         d.setFullYear(d.getFullYear() + 5);
         this.config.channelExpires = d.toGMTString();
@@ -116,9 +118,9 @@ Backplane.init = function(config) {
 
     if (this.getChannelName()) {
         this.onInit();
-        //this.request();
-        this.fetchMessages();
+        this.request();
     } else {
+        this.invalidateCache();
         this.fetchNewChannel();
     }
     return true;
@@ -132,23 +134,123 @@ Backplane.init = function(config) {
  * @returns Subscription ID which can be used later for unsubscribing
  */
 Backplane.subscribe = function(callback) {
-    if (!this.initialized) return false;
+    if (!this.getChannelName()) {
+        return false;
+    }
+
     if (!this.checkSubscribers()) {
         // No subscribers means no request loop is running;
         // start one up.
         this.runRequests = true;
         this.request();
     }
-    var id = (new Date()).valueOf() + Math.random();
+    var i, id = new Date().getTime() + Math.random();
     this.subscribers[id] = callback;
-    //if the first frame has already been processed, catch this widget up
-    if (this.firstFrameReceived) {
-        for (var i=0; i<this.cachedMessagesIndex.length; i++) {
-            callback(this.cachedMessages[this.cachedMessagesIndex[i]]);
+    // If the first frame has already been processed 
+    // or if replayOnPageLoad is true, push all messages
+    // to subscriber from memory cache 
+    if (this.firstFrameReceived || this.replayOnPageLoad) {
+        for (i=0; i<this.memoryCachedMessagesIndex.length; i++) {
+            callback(this.memoryCachedMessages[this.memoryCachedMessagesIndex[i]]);
         }
     }
     return id;
 };
+
+/**
+ * Retrieve all long term cached messages.
+ *
+ */
+Backplane.getCachedMessages = function() {
+    var indexString, messageString, cachedIndex, message, expireDate, messages = [], messagesIndex = [], cached = {}, i;
+    if (window.localStorage) {
+        indexString = window.localStorage.getItem(this.messageCacheIndexKey);
+        messageString = window.localStorage.getItem(this.messageCacheKey);
+        if (indexString && messageString) {
+            try {
+                cachedIndex = JSON.parse(indexString);
+                cached = JSON.parse(messageString);
+                for (i = 0; i < cachedIndex.length; i++) {
+                    // only add if the message is NOT expired
+                    message = cached[cachedIndex[i]];
+                    expireDate = new Date(message.expire);
+                    if (expireDate > new Date()) {
+                        messages.push(message);
+                        messagesIndex.push(cachedIndex[i]);
+                    } else {
+                        delete cached[cachedIndex[i]];
+                    }
+                }
+            } catch(e) {
+                // if we get a parse error, let's just write back empty
+                this.error("failed to parse cached message data");
+
+            }
+            // update localStorage to remove any expired messages
+            window.localStorage.setItem(this.messageCacheIndexKey, JSON.stringify(messagesIndex));
+            window.localStorage.setItem(this.messageCacheKey, JSON.stringify(cached));
+        }
+    }
+    return messages;
+};
+
+
+Backplane.syncMemoryCache = function() {
+    this.memoryCachedMessages = {};
+    this.memoryCachedMessagesIndex = [];
+    var messages = Backplane.getCachedMessages();
+    for (i = 0; i < messages.length; i++) {
+       Backplane.addMessageToMemoryCache(messages[i]);
+    } 
+}
+
+Backplane.addMessageToMemoryCache = function(message) {
+   if (!this.memoryCachedMessages.hasOwnProperty(message.messageURL)) {
+       this.memoryCachedMessages[message.messageURL] = message;
+       this.memoryCachedMessagesIndex.push(message.messageURL);
+   }
+   if (this.memoryCachedMessagesIndex.length > this.cacheMax) {
+      delete this.memoryCachedMessages[this.memoryCachedMessagesIndex[0]];
+      this.memoryCachedMessagesIndex.splice(0,1);
+   }
+}
+
+Backplane.addMessageToLongTermCache = function(message) {
+    var indexString, messageString, cachedIndex = [], cached = {};
+ 
+    if (window.localStorage) {
+        indexString = window.localStorage.getItem(this.messageCacheIndexKey);
+        messageString = window.localStorage.getItem(this.messageCacheKey);
+        if (indexString && messageString) {
+            try {
+                cachedIndex = JSON.parse(indexString);
+                cached = JSON.parse(messageString);
+            } catch(e) {
+                this.error("failed to parse cached message data");
+            }
+
+        }
+        cached[message.messageURL] = message;
+        if (!Backplane.inArray(cachedIndex, message.messageURL)) {
+            cachedIndex.push(message.messageURL);
+        }
+        // sort, just in case
+        cachedIndex.sort();
+        // update localStorage to remove any expired messages
+        window.localStorage.setItem(this.messageCacheIndexKey, JSON.stringify(cachedIndex));
+        window.localStorage.setItem(this.messageCacheKey, JSON.stringify(cached));
+    }  // what about IE7?
+
+}
+
+Backplane.inArray = function in_array(array, id) {
+    for(var i=0;i<array.length;i++) {
+        if(array[i] === id) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * Removes specified subscription
@@ -156,7 +258,7 @@ Backplane.subscribe = function(callback) {
  * @param {Integer} Subscription ID
  */
 Backplane.unsubscribe = function(subscriptionID) {
-    if (!this.initialized || !subscriptionID) return false;
+    if (!subscriptionID) { return false; }
     delete this.subscribers[subscriptionID];
     if (!this.checkSubscribers()) {
         // No more subscribers left; go to sleep.
@@ -170,7 +272,7 @@ Backplane.unsubscribe = function(subscriptionID) {
  * @returns Backplane channel ID
  */
 Backplane.getChannelID = function() {
-    if (!this.initialized) return false;
+    if (!this.getChannelName()) { return false; }
     return this.channelID;
 };
 
@@ -191,13 +293,13 @@ Backplane.expectMessages = function(types) {
  * @param {Integer} TimeInterval Time interval in seconds
  */
 Backplane.expectMessagesWithin = function(interval, types) {
-    if (!this.initialized || !interval) return false;
+    if (!this.getChannelName() || !interval) { return false; }
     this.awaiting.since = this.getTS();
     this.awaiting.interval = interval;
     // we should wait entire interval if no types were specified
     this.awaiting.nonstop = !types;
     if (types) {
-        types = typeof types == "string" ? [types] : types;
+        types = typeof types === "string" ? [types] : types;
         this.awaiting.queue.push(types);
     }
     var until = this.awaiting.since + interval;
@@ -220,46 +322,43 @@ Backplane.expectMessagesWithin = function(interval, types) {
  */
 Backplane.finishInit = function (initPayload) {
 
+    var scopes, k, channel;
     this.log("received access token and channel from server");
     this.token = initPayload.access_token;
     this.refresh_token = initPayload.refresh_token;
-    var scopes = initPayload.scope.split(" ");
-    for (var k = 0; k < scopes.length; k++) {
+    scopes = initPayload.scope.split(" ");
+    for (k = 0; k < scopes.length; k++) {
         if (scopes[k].indexOf("channel:") > -1) {
-            var channel = scopes[k].split(":");
+            channel = scopes[k].split(":");
             this.channelName = channel[1];
             this.log("channel set to: " + this.channelName);
         }
     }
 
-    if (this.channelName == null) {
+    if (this.channelName === null) {
         this.error("No channel found in the returned scope");
+        return;
     }
 
     this.setCookieChannel();
     this.channelID = this.generateChannelID();
-    this.initialized = true;
     this.log("channelID = " + this.channelID);
+    this.subscribers = {};
     this.onInit();
-    //this.request();
     this.fetchMessages();
 };
 
 Backplane.generateNextFrameURL = function() {
-    if (typeof this.since == "undefined") {
+    if (typeof this.since === "undefined") {
         this.since = this.config.serverBaseURL + "/messages";
     }
-    var localSince = this.since;
+    var localBlock, localSince = this.since;
     if (localSince.indexOf('?') > -1 )  {
         localSince += "&";
     } else {
         localSince += "?";
     }
-    var localBlock = this.block;
-    // do not block if this is the first request for Backplane server
-    if (!this.firstFrameReceived) {
-        localBlock = 0;
-    }
+    localBlock = this.block;
 
     return localSince + "callback=Backplane.response&access_token=" + this.token + "&block=" + localBlock + "&rnd=" + Math.random();
 };
@@ -269,37 +368,40 @@ Backplane.generateChannelID = function() {
 };
 
 Backplane.getChannelName = function() {
-    if (!this.initialized) return false;
-    if (this.channelName == null) return false;
+    if (this.channelName === null) { return false; }
     return this.channelName;
 };
 
 Backplane.getTS = function() {
-    return Math.round((new Date()).valueOf() / 1000);
+    return Math.round(new Date().getTime() / 1000);
 };
 
 Backplane.checkSubscribers = function() {
-	var name;
-	for (name in this.subscribers) {
-		return true;
-	}
-	return false;
+    var name;
+    for (name in this.subscribers) {
+        if (this.subscribers.hasOwnProperty(name)) {
+            return true;
+        }
+    }
+    return false;
 };
 
 Backplane.loadChannelFromCookie = function() {
-    var match = (document.cookie || "").match(/backplane2-channel=(.*?)(?:$|;)/);
-    if (!match || !match[1]) return {};
-    var parts = match[1].split(":");
+    var parts, match;
+
+    match = (document.cookie || "").match(/backplane2-channel=([\w\W]*?)(?:$|;)/);
+    if (!match || !match[1]) { return {}; }
+    parts = match[1].split(":");
     this.token = decodeURIComponent(parts[0]);
     this.channelName = decodeURIComponent(parts[1]);
     // XXX: migration: the refresh token was not saved by older
     // versions of this code (remove this check eventually).
-    if (typeof parts[2] != "undefined") {
-        this.log("found refresh token in cookie")
+    if (typeof parts[2] !== "undefined") {
+        this.log("found refresh token in cookie");
         this.refresh_token = decodeURIComponent(parts[2]);
     }
     if (this.token.length < 20 || this.channelName.length < 30 ||
-      typeof parts[2] != "undefined" && this.refresh_token.length < 20) {
+        (typeof parts[2] !== "undefined" && this.refresh_token.length < 20)) {
         this.error("backplane2-channel value: '" + match[1] + "' is corrupt");
     } else {
         this.log("retrieved token and channel from cookie");
@@ -315,6 +417,7 @@ Backplane.setCookieChannel = function() {
 };
 
 Backplane.resetCookieChannel = function() {
+    this.invalidateCache();
     this.channelName = null;
     this.token = null;
     this.refresh_token = null;
@@ -324,25 +427,24 @@ Backplane.resetCookieChannel = function() {
 };
 
 Backplane.makeCall = function(url, type, charset) {
-    var id = type + "Id";
-
-    // cleanup old script if it exists to prevent memory leak
-    var oldScript;
-    while (oldScript = document.getElementById(id)) {
+    var id = type + "Id", oldScript, prop, script, firstScript;
+    oldScript = document.getElementById(id);
+    while (oldScript) {
         oldScript.parentNode.removeChild(oldScript);
-        for (var prop in oldScript) {
+        for (prop in oldScript) {
             delete oldScript[prop];
         }
+        oldScript = document.getElementById(id);
     }
 
-    var script = document.createElement("script");
+    script = document.createElement("script");
     script.type = "text/javascript";
     script.id = id;
-    if (typeof charset != "undefined") {
+    if (typeof charset !== "undefined") {
         script.charset = charset;
     }
     script.src = url;
-    var firstScript = document.getElementsByTagName("script")[0];
+    firstScript = document.getElementsByTagName("script")[0];
     firstScript.parentNode.insertBefore(script, firstScript);
 };
 
@@ -351,9 +453,21 @@ Backplane.fetchNewChannel = function() {
     Backplane.makeCall(url, "fetchNewChannel");
 };
 
+Backplane.invalidateCache = function() {
+    this.log("removing cached backplane messages");
+    this.memoryCachedMessages = {};
+    this.memoryCachedMessagesIndex = [];
+
+    if (window.localStorage) {
+        window.localStorage.removeItem(this.messageCacheExpires);
+        window.localStorage.removeItem(this.messageCacheKey);
+        window.localStorage.removeItem(this.messageCacheIndexKey);
+    }
+};
+
 Backplane.refreshToken = function() {
     var url = this.config.serverBaseURL + "/token?callback=Backplane.refreshTokenResponse&refresh_token=" + this.refresh_token + "&rnd=" + Math.random();
-    Backplane.makeCall(url, "refreshToken");
+    this.makeCall(url, "refreshToken");
 };
 
 /**
@@ -363,7 +477,7 @@ Backplane.refreshToken = function() {
  *      "refresh_token":"ARXU21NC8gLdKwIM6SZIf0"}
  */
 Backplane.refreshTokenResponse = function(tokenPayload) {
-    if (typeof tokenPayload.error_description != "undefined") {
+    if (typeof tokenPayload.error_description !== "undefined") {
         if (tokenPayload.error_description === "invalid token") {
             this.log("received invalid token error from server when refreshing access token; requesting new access token");
             this.resetCookieChannel();
@@ -377,10 +491,10 @@ Backplane.refreshTokenResponse = function(tokenPayload) {
     this.token = tokenPayload.access_token;
     this.refresh_token = tokenPayload.refresh_token;
     this.setCookieChannel();
-}
+};
 
 Backplane.normalizeURL = function(rawURL) {
-    return rawURL.replace(/^\s*(https?:\/\/)?(.*?)[\s\/]*$/, function(match, proto, uri){
+    return rawURL.replace(/^\s*(https?:\/\/)?([\w\W]*?)[\s\/]*$/, function(match, proto, uri){
         return (proto || window.location.protocol + "//") + uri;
     });
 };
@@ -394,29 +508,27 @@ Backplane.normalizeURL = function(rawURL) {
  * that, continue to slow down until we reach the regular interval.
  */
 Backplane.calcTimeout = function() {
-    var timeout, ts = this.getTS();
-    if (this.block > 0) {
-        return 2000;
-    }
+    var timeout, ts = this.getTS(), relative, limit;
+
     if (ts < this.awaiting.until) {
         // stop frequent polling as soon as all the necessary messages received
         if (!this.awaiting.nonstop && !this.awaiting.queue.length) {
             this.awaiting.until = ts;
             return this.calcTimeout();
         }
-        var relative = ts - this.awaiting.since;
-        var limit = this.intervals.frequent - this.intervals.min;
+        relative = ts - this.awaiting.since;
+        limit = this.intervals.frequent - this.intervals.min;
         // we should reach this.intervals.frequent at the end
         timeout = this.intervals.min +
             Math.round(limit * relative / this.awaiting.interval);
     } else if (ts < this.awaiting.until + this.intervals.slowdown) {
-        var relative = ts - this.awaiting.until;
-        var limit = this.intervals.regular - this.intervals.frequent;
+        relative = ts - this.awaiting.until;
+        limit = this.intervals.regular - this.intervals.frequent;
         // we should reach this.intervals.regular at the end
         timeout = this.intervals.frequent +
             Math.round(limit * relative / this.intervals.slowdown);
     } else {
-        timeout = typeof this.since == "undefined" ? 0 : this.intervals.regular;
+        timeout = typeof this.since === "undefined" ? 0 : this.intervals.regular;
         this.awaiting.nonstop = false;
     }
     return (timeout * 1000);
@@ -425,11 +537,18 @@ Backplane.calcTimeout = function() {
 Backplane.fetchMessages = function() {
     var url = Backplane.generateNextFrameURL();
     Backplane.makeCall(url, "fetchMessages", "utf-8");
-}
+};
+
+Backplane.convertMessageURLtoNextURL = function(messageURL, serverBaseURL) {
+    var baseURL = this.config.serverBaseURL || serverBaseURL;
+    // convert "https://my.backplaneserver.com/v2/message/2013-03-21T22:34:01.867Z-uDuDFMjcAw"
+    // to "https://my.backplaneserver.com/v2/messages?since=2013-03-21T22:34:01.867Z-uDuDFMjcAw"
+    return messageURL.replace(baseURL + "/message/",  baseURL + "/messages?since=");
+};
 
 Backplane.request = function() {
     var self = this;
-    if (!this.initialized || !this.runRequests) return false;
+    if (!this.getChannelName() || !this.runRequests) { return false; }
     this.stopTimer("regular");
     this.stopTimer("watchdog");
     this.timers.regular = setTimeout(function() {
@@ -437,6 +556,23 @@ Backplane.request = function() {
         self.timers.watchdog = setTimeout(function() {
             self.request();
         }, (Backplane.block * 1000) + 5000);
+
+        // If no 'since' parameter exists, this is the FIRST call.
+        // Check the long term cache to get the last message id delivered 
+        // and sync up the in-memory message header cache if required.
+        if (!self.since) {
+            var messages = self.getCachedMessages();
+            self.log(messages.length + " message(s) in cache");
+            if (messages.length > 0) {
+                self.since = self.convertMessageURLtoNextURL(messages[messages.length-1].messageURL);
+            }
+            // if the desire is to play back all messages for each page load
+            // then sync up the memory cache with the long term cache
+            if (self.replayOnPageLoad) {
+               Backplane.syncMemoryCache();
+            }            
+        }
+
         Backplane.fetchMessages();
     }, this.calcTimeout());
 };
@@ -448,10 +584,10 @@ Backplane.request = function() {
  */
 
 Backplane.response = function(messageFrame) {
-    var self = this;
+    var self = this, i, j, k, l, satisfied, queue;
     this.stopTimer("watchdog");
 
-    if (typeof messageFrame.error_description != "undefined") {
+    if (typeof messageFrame.error_description !== "undefined") {
         if (messageFrame.error_description === "invalid token") {
             this.log("received invalid token error from server when retrieving messages");
             if (this.refresh_token) {
@@ -471,45 +607,34 @@ Backplane.response = function(messageFrame) {
         return;
     }
 
-    if (this.firstFrameReceived === false) {
-        if (typeof this.config.initFrameFilter != "undefined") {
-            messageFrame.messages = this.config.initFrameFilter(messageFrame.messages);
-        } else {
-            messageFrame.messages = [];
-        }
-    }
-
+    //"nextURL":"https://backplane1.janrainbackplane.com/v2/messages?since=2013-03-21T22:37:52.001Z-bhVE4nDhYM"
     this.since = messageFrame.nextURL;
 
-    for (var i = 0; i < messageFrame.messages.length; i++) {
+    for (i = 0; i < messageFrame.messages.length; i++) {
+
+        // store in both caches
+        Backplane.addMessageToLongTermCache(messageFrame.messages[i]);
+        Backplane.addMessageToMemoryCache(messageFrame.messages[i]);
+
         // notify subscribers
-        for (var j in this.subscribers) {
+        for (j in this.subscribers) {
             if (this.subscribers.hasOwnProperty(j)) {
                 this.subscribers[j](messageFrame.messages[i]);
             }
         }
-        // stash message in cache
-        if (this.cacheMax > 0) {
-            if (!this.cachedMessages.hasOwnProperty(messageFrame.messages[messageFrame.messages[i].messageURL])) {
-                this.cachedMessages[messageFrame.messages[i].messageURL] = messageFrame.messages[i];
-                this.cachedMessagesIndex.push(messageFrame.messages[i].messageURL);
-            }
-            if (this.cachedMessagesIndex.length > this.cacheMax) {
-                delete this.cachedMessages[this.cachedMessagesIndex[0]];
-                this.cachedMessagesIndex.splice(0,1);
-            }
-        }
 
         // clean up awaiting specific events queue
-        var queue = [];
-        for (var k = 0; k < this.awaiting.queue.length; k++) {
-            var satisfied = false;
-            for (var l = 0; l < this.awaiting.queue[k].length; l++) {
-                if (this.awaiting.queue[k][l] == messageFrame.messages[i].type) {
+        queue = [];
+        for (k = 0; k < this.awaiting.queue.length; k++) {
+            satisfied = false;
+            for (l = 0; l < this.awaiting.queue[k].length; l++) {
+                if (this.awaiting.queue[k][l] === messageFrame.messages[i].type) {
                     satisfied = true;
                 }
             }
-            if (!satisfied) queue.push(this.awaiting.queue[k]);
+            if (!satisfied) {
+                queue.push(this.awaiting.queue[k]);
+            }
         }
         this.awaiting.queue = queue;
     }
@@ -522,10 +647,11 @@ Backplane.response = function(messageFrame) {
 
     this.firstFrameReceived = true;
     this.request();
-    //this.fetchMessages();
 };
 
 Backplane.stopTimer = function(name) {
     var timer = this.timers[name];
-    if (timer) clearTimeout(timer);
+    if (timer) {
+        clearTimeout(timer);
+    }
 };
