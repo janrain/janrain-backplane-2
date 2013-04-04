@@ -39,7 +39,7 @@ window.Backplane = window.Backplane || (function() {
             console.error("Backplane ERROR: " + msg);
         }
     };
-    BP.version = "2.0.5";
+    BP.version = "2.0.6";
     BP.token = null;
     BP.refresh_token = null;
     BP.channelName = null;
@@ -117,6 +117,7 @@ Backplane.init = function(config) {
     }
 
     if (this.getChannelName()) {
+        this.syncMemoryCache();
         this.onInit();
         this.request();
     } else {
@@ -131,12 +132,15 @@ Backplane.init = function(config) {
  * Subscribes to messages from Backplane server
  *
  * @param {Function} Callback - Callback function which accepts backplane messages
+ * @param {Boolean} - true if the clients wants all messages replayed on page reload
  * @returns Subscription ID which can be used later for unsubscribing
  */
-Backplane.subscribe = function(callback) {
+Backplane.subscribe = function(callback, replaysWanted) {
     if (!this.getChannelName()) {
         return false;
     }
+
+    if(typeof(replaysWanted)==='undefined') replaysWanted = this.replayOnPageLoad;
 
     if (!this.checkSubscribers()) {
         // No subscribers means no request loop is running;
@@ -145,13 +149,18 @@ Backplane.subscribe = function(callback) {
         this.request();
     }
     var i, id = new Date().getTime() + Math.random();
-    this.subscribers[id] = callback;
+    var subscriber = {
+      id: id,
+      callback: callback,
+      wantsReplays:  replaysWanted
+    };
+    this.subscribers[id] = subscriber;
     // If the first frame has already been processed 
-    // or if replayOnPageLoad is true, push all messages
-    // to subscriber from memory cache 
-    if (this.firstFrameReceived || this.replayOnPageLoad) {
+    // or if replayOnPageLoad is true and the subscriber wants replays
+    // push all messages to subscriber from memory cache 
+    if (this.firstFrameReceived || subscriber.wantsReplays) {
         for (i=0; i<this.memoryCachedMessagesIndex.length; i++) {
-            callback(this.memoryCachedMessages[this.memoryCachedMessagesIndex[i]]);
+            subscriber.callback(this.memoryCachedMessages[this.memoryCachedMessagesIndex[i]]);
         }
     }
     return id;
@@ -324,6 +333,10 @@ Backplane.finishInit = function (initPayload) {
 
     var scopes, k, channel;
     this.log("received access token and channel from server");
+    if (initPayload.error != null) {
+      this.error("Error initializing backlane token: " + initPayload.error);
+      return;
+    }
     this.token = initPayload.access_token;
     this.refresh_token = initPayload.refresh_token;
     scopes = initPayload.scope.split(" ");
@@ -619,7 +632,7 @@ Backplane.response = function(messageFrame) {
         // notify subscribers
         for (j in this.subscribers) {
             if (this.subscribers.hasOwnProperty(j)) {
-                this.subscribers[j](messageFrame.messages[i]);
+                this.subscribers[j].callback(messageFrame.messages[i]);
             }
         }
 
