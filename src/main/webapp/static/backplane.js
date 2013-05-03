@@ -38,7 +38,7 @@ window.Backplane = window.Backplane || (function() {
             console.error("Backplane ERROR: " + msg);
         }
     }
-    BP.version = "1.2.5";
+    BP.version = "1.2.6";
     BP.channelByBus = {};
     BP.config = {};
     BP.initialized = false;
@@ -211,13 +211,23 @@ Backplane.expectMessagesWithin = function(interval, types) {
  * Internal functions
  */
 Backplane.finishInit = function (channelName) {
-    if (channelName) {
-        this.channelByBus[this.config.busName] = channelName;
+    if (typeof channelName === "undefined") {
+        // There's no use retrying the request: "undefined" means this
+        // method was called by a JSONP server response, which means
+        // the server is up and running and it probably was a
+        // malformed request that caused the error. Nothing to do but
+        // bail out.
+        this.error("finishInit: server failed to return a new channel; stopping the request loop");
+        return;
     }
 
-    this.setCookieChannels();
-    this.config.channelName = this.getChannelName();
-    this.config.channelID = this.generateChannelID();
+    if (channelName) {
+        this.channelByBus[this.config.busName] = channelName;
+        this.setCookieChannels();
+        this.config.channelName = this.getChannelName();
+        this.config.channelID = this.generateChannelID();
+    }
+
     this.onInit();
     this.request();
 };
