@@ -21,6 +21,7 @@ import com.janrain.backplane.server.dao.DaoFactory;
 import com.janrain.cache.CachedL1;
 import com.janrain.commons.util.AwsUtility;
 import com.janrain.commons.util.InitSystemProps;
+import com.janrain.redis.Redis;
 import com.janrain.utils.BackplaneSystemProps;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.CuratorFrameworkFactory;
@@ -39,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -57,7 +57,7 @@ public class Backplane1Config {
     /**
 	 * @return the debugMode
 	 */
-	public boolean isDebugMode() {
+	public static boolean isDebugMode() {
         return Boolean.valueOf(cachedGet(BpServerConfig.Field.DEBUG_MODE));
 	}
 
@@ -68,6 +68,11 @@ public class Backplane1Config {
     public long getDefaultMaxMessageLimit() {
         Long max = Long.valueOf(cachedGet(BpServerConfig.Field.DEFAULT_MESSAGES_MAX));
         return max == null ? Backplane1Config.BP_MAX_MESSAGES_DEFAULT : max;
+    }
+
+    public static boolean isLeaderDisabled() {
+        // skip DAO layer, not so crazy about editing serialized streams for debug, yay FED-76
+        return isDebugMode() && Redis.getInstance().get(EC2InstanceId) != null;
     }
 
     public Exception getDebugException(Exception e) {
@@ -161,6 +166,7 @@ public class Backplane1Config {
             CuratorFramework client = CuratorFrameworkFactory.newClient(zkServerConfig, new ExponentialBackoffRetry(50, 20));
             client.start();
             LeaderSelector leaderSelector = new LeaderSelector(client, "/v1_worker", new MessageProcessor());
+            leaderSelector.autoRequeue();
             leaderSelector.start();
         } catch (Exception e) {
             logger.error(e);
@@ -188,7 +194,7 @@ public class Backplane1Config {
         }
     }
 
-    private String cachedGet(BpServerConfig.Field property) {
+    private static String cachedGet(BpServerConfig.Field property) {
 
         BpServerConfig bpServerConfigCache = (BpServerConfig) CachedL1.getInstance().getObject(BackplaneSystemProps.BPSERVER_CONFIG_KEY);
         if (bpServerConfigCache == null) {

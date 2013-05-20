@@ -1,7 +1,6 @@
 package com.janrain.backplane.server.config;
 
 import com.janrain.backplane.server.ExternalizableCore;
-import com.janrain.backplane2.server.InvalidRequestException;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
 import com.janrain.utils.BackplaneSystemProps;

@@ -112,8 +112,8 @@ public class RedisBackplaneMessageDAO extends DAO<BackplaneMessage> {
 
         Jedis jedis = null;
 
+        int cleanedUpCount = 0;
         try {
-
             logger.info("preparing to cleanup v1 messages");
 
             jedis = Redis.getInstance().getWriteJedis();
@@ -133,6 +133,7 @@ public class RedisBackplaneMessageDAO extends DAO<BackplaneMessage> {
                     // if the message body is not found, it expired and should be removed from indexes
                     if (!jedis.exists(getKey(key))) {
                         delete(key);
+                        cleanedUpCount++;
                     }
                 }
             }
@@ -143,7 +144,7 @@ public class RedisBackplaneMessageDAO extends DAO<BackplaneMessage> {
         } catch (Exception e) {
             logger.warn(e);
         } finally {
-            logger.info("exiting v1 message cleanup");
+            logger.info("exiting v1 message cleanup, " + cleanedUpCount + " messages deleted");
             Redis.getInstance().releaseToPool(jedis);
         }
 

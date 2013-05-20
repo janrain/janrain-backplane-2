@@ -25,6 +25,7 @@ import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.util.AwsUtility;
 import com.janrain.commons.util.InitSystemProps;
 import com.janrain.crypto.HmacHashUtils;
+import com.janrain.redis.Redis;
 import com.janrain.utils.BackplaneSystemProps;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.CuratorFrameworkFactory;
@@ -41,12 +42,9 @@ import org.springframework.context.annotation.Scope;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -78,6 +76,12 @@ public class Backplane2Config {
         Long max = Long.valueOf(cachedGet(BpServerConfig.Field.DEFAULT_MESSAGES_MAX));
         return max == null ? Backplane2Config.BP_MAX_MESSAGES_DEFAULT : max;
     }
+
+    public boolean isLeaderDisabled() {
+        // skip DAO layer, not so crazy about editing serialized streams for debug, yay FED-76
+        return isDebugMode() && Redis.getInstance().get(EC2InstanceId) != null;
+    }
+
 
     public Exception getDebugException(Exception e) {
         return isDebugMode() ? e: null;
@@ -201,7 +205,8 @@ public class Backplane2Config {
             }
             CuratorFramework client = CuratorFrameworkFactory.newClient(zkServerConfig, new ExponentialBackoffRetry(50, 20));
             client.start();
-            LeaderSelector leaderSelector = new LeaderSelector(client, "/v2_worker", new V2MessageProcessor(daoFactory));
+            LeaderSelector leaderSelector = new LeaderSelector(client, "/v2_worker", new V2MessageProcessor(this, daoFactory));
+            leaderSelector.autoRequeue();
             leaderSelector.start();
             com.janrain.redis.Redis.getInstance().setActiveRedisInstance(client);
         } catch (Exception e) {
@@ -232,10 +237,6 @@ public class Backplane2Config {
             }
         }
     }
-
- //   @Inject
-    @SuppressWarnings({"UnusedDeclaration"})
-   // private SuperSimpleDB superSimpleDb;
 
     @Inject
     private DAOFactory daoFactory;

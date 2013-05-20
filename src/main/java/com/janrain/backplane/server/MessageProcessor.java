@@ -18,8 +18,8 @@ package com.janrain.backplane.server;
 
 import com.janrain.backplane.DateTimeUtils;
 import com.janrain.backplane.server.config.Backplane1Config;
-import com.janrain.backplane.server.dao.redis.RedisBackplaneMessageDAO;
 import com.janrain.backplane.server.dao.DaoFactory;
+import com.janrain.backplane.server.dao.redis.RedisBackplaneMessageDAO;
 import com.janrain.commons.util.Pair;
 import com.janrain.redis.Redis;
 import com.janrain.utils.BackplaneSystemProps;
@@ -35,9 +35,13 @@ import org.apache.log4j.Logger;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,38 +49,70 @@ import java.util.concurrent.TimeUnit;
  */
 public class MessageProcessor implements LeaderSelectorListener {
 
+    // - PUBLIC
+
     public MessageProcessor() {}
 
-    public void scheduleCleanupMessage() {
-        logger.info("creating v1 message cleanup thread");
-        ScheduledExecutorService messageWorkerTask = Executors.newScheduledThreadPool(1);
-        messageWorkerTask.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                cleanupMessages();
-            }
-        }, 2, 2, TimeUnit.HOURS);
+    @Override
+    public void takeLeadership(CuratorFramework curatorFramework) throws Exception {
+        setLeader(true);
+        logger.info("[" + BackplaneSystemProps.getMachineName() + "] v1 leader elected for message processing");
 
-        // register worker
-        Backplane1Config.addToBackgroundServices(messageWorkerTask);
+        ScheduledFuture<?> cleanupTask = scheduledExecutor.scheduleAtFixedRate(cleanupRunnable, 2, 2, TimeUnit.HOURS);
+        insertMessages();
+        cleanupTask.cancel(false);
+
+        logger.info("[" + BackplaneSystemProps.getMachineName() + "] v1 leader ended message processing");
     }
 
-    /**
-     * Processor to remove expired messages
-     */
-    public void cleanupMessages() {
-        try {
-            DaoFactory.getBackplaneMessageDAO().deleteExpiredMessages();
-        } catch (Exception e) {
-            logger.warn(e);
+    @Override
+    public void stateChanged(CuratorFramework curatorFramework, ConnectionState connectionState) {
+        logger.info("v1 leader selector state changed to " + connectionState);
+        if (isLeader() && (ConnectionState.LOST == connectionState || ConnectionState.SUSPENDED == connectionState)) {
+            setLeader(false);
+            logger.info("v1 leader lost connection, giving up leadership");
         }
     }
+
+    // - PRIVATE
+
+    private static final Logger logger = Logger.getLogger(MessageProcessor.class);
+
+    private static final String V1_LAST_ID = "v1_last_id";
+
+    private static ScheduledExecutorService scheduledExecutor = Executors.newScheduledThreadPool(1);
+    static {
+        Backplane1Config.addToBackgroundServices(scheduledExecutor);
+    }
+
+    private static Runnable cleanupRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                DaoFactory.getBackplaneMessageDAO().deleteExpiredMessages();
+            } catch (Exception e) {
+                logger.warn(e);
+            }
+        }
+    };
+
+    private final Histogram timeInQueue = Metrics.newHistogram(new MetricName("v1", this.getClass().getName().replace(".","_"), "time_in_queue"));
+
+    private synchronized void setLeader(boolean leader) {
+        this.leader = leader;
+    }
+
+    private synchronized boolean isLeader() {
+        return leader && ! Backplane1Config.isLeaderDisabled();
+    }
+
+    private boolean leader = false;
 
     /**
      * Processor to pull messages off queue and make them available
      *
      */
-    public void insertMessages(boolean loop) {
+    private void insertMessages() {
 
         try {
             logger.info("v1 message processor started");
@@ -187,10 +223,13 @@ public class MessageProcessor implements LeaderSelectorListener {
                         logger.info("flushed " + insertionTimes.size() + " messages");
                         long now = System.currentTimeMillis();
                         for (String insertionId : insertionTimes) {
-                            long diff = now - BackplaneMessage.getDateFromId(insertionId).getTime();
+                            Date oldIdDate = BackplaneMessage.getDateFromId(insertionId);
+                            long diff = now - oldIdDate.getTime();
                             timeInQueue.update(diff);
                             if (diff < 0 || diff > 2880000) {
-                                logger.warn("time diff is bizarre at: " + diff);
+                                logger.warn("time diff is bizarre at: " + diff
+                                        + "; now: " + DateTimeUtils.ISO8601.get().format(new Date(now))
+                                        + ", oldId: " + DateTimeUtils.ISO8601.get().format(oldIdDate));
                             }
                         }
 
@@ -221,7 +260,7 @@ public class MessageProcessor implements LeaderSelectorListener {
                     }
                 }
 
-            } while (loop);
+            } while (isLeader());
 
         } catch (Exception e) {
             logger.warn("exception thrown in message processor thread: " + e.getMessage());
@@ -233,8 +272,8 @@ public class MessageProcessor implements LeaderSelectorListener {
         String latestMessageId = jedis.get(V1_LAST_ID);
         Date dateFromId = BackplaneMessage.getDateFromId(latestMessageId);
         return StringUtils.isEmpty(latestMessageId) || null == dateFromId ?
-               getLastMessageIdLegacy(jedis) :
-               new Pair<String, Date>(latestMessageId, dateFromId);
+                getLastMessageIdLegacy(jedis) :
+                new Pair<String, Date>(latestMessageId, dateFromId);
     }
 
     private Pair<String,Date> getLastMessageIdLegacy(Jedis jedis) {
@@ -259,28 +298,5 @@ public class MessageProcessor implements LeaderSelectorListener {
             logger.warn("error retrieving last message ID and date from V1_MESSAGES: " + e.getMessage(), e);
             return new Pair<String, Date>("", new Date(0));
         }
-    }
-
-
-    private static final Logger logger = Logger.getLogger(MessageProcessor.class);
-
-    private final Histogram timeInQueue = Metrics.newHistogram(new MetricName("v1", this.getClass().getName().replace(".","_"), "time_in_queue"));
-
-    private static final String V1_LAST_ID = "v1_last_id";
-
-    @Override
-    public void takeLeadership(CuratorFramework curatorFramework) throws Exception {
-        logger.info("[" + BackplaneSystemProps.getMachineName() + "] v1 leader elected for message processing");
-
-        // start cleanup message thread
-        scheduleCleanupMessage();
-
-        insertMessages(true);
-        logger.info("[" + BackplaneSystemProps.getMachineName() + "] v1 leader ended message processing");
-    }
-
-    @Override
-    public void stateChanged(CuratorFramework curatorFramework, ConnectionState connectionState) {
-        logger.info("state changed");
     }
 }

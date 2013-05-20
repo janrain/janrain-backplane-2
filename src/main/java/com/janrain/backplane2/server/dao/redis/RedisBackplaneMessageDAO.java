@@ -280,8 +280,8 @@ public class RedisBackplaneMessageDAO implements BackplaneMessageDAO {
 
         Jedis jedis = null;
 
+        int cleanedUpCount = 0;
         try {
-
             logger.info("preparing to cleanup v2 messages");
 
             jedis = Redis.getInstance().getWriteJedis();
@@ -299,6 +299,7 @@ public class RedisBackplaneMessageDAO implements BackplaneMessageDAO {
                         String[] segs = metaData.split(" ");
                         if (!jedis.exists(getKey(segs[2]))) {
                             delete(segs[2]);
+                            cleanedUpCount++;
                         }
                     } catch (Exception e) {
                         // ignore
@@ -312,7 +313,7 @@ public class RedisBackplaneMessageDAO implements BackplaneMessageDAO {
         } catch (Exception e) {
             logger.warn(e);
         } finally {
-            logger.info("exiting v2 message cleanup");
+            logger.info("exiting v2 message cleanup, " + cleanedUpCount + " messages deleted");
             Redis.getInstance().releaseToPool(jedis);
         }
     }
