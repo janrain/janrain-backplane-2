@@ -61,4 +61,6 @@
     <bean id="bpConfig" class="com.janrain.backplane.server.config.Backplane1Config"/>
     <bean id="bpConfig2" class="com.janrain.backplane2.server.config.Backplane2Config"/>
 
+    <bean id="analyticsLogger" class="com.janrain.utils.AnalyticsLogger"/>
+
 </beans>

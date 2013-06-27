@@ -56,8 +56,12 @@
     <appender name="metrics" class="com.yammer.metrics.log4j.InstrumentedAppender"/>
 
 	
-	<!-- Janrain logger -->
+	<!-- Janrain loggers -->
 	<logger name="com.janrain">
+		<level value="info" />
+	</logger>
+
+    <logger name="analytics">
 		<level value="info" />
 	</logger>
 

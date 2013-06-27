@@ -34,6 +34,9 @@ public class BackplaneSystemProps extends InitSystemProps {
     public static final String REDIS_SERVER_PRIMARY = "REDIS_SERVER_PRIMARY";
     public static final String REDIS_SERVER_READS = "REDIS_SERVER_READS";
     public static final String IP_WHITE_LIST = "IP_WHITE_LIST";
+    public static final String ANALYTICS_FALLBACK_PATH = "ANALYTICS_FALLBACK_PATH";
+    public static final String ANALYTICS_FALLBACK_MAXSIZEMB = "ANALYTICS_FALLBACK_MAXSIZEMB";
+    public static final String ANALYTICS_LOGGING = "ANALYTICS_LOGGING";
     public static final String ADMIN_USER = "bpadmin";
     public static final String BPSERVER_CONFIG_KEY = "bpserverconfig";
 
@@ -54,6 +57,9 @@ public class BackplaneSystemProps extends InitSystemProps {
         load(REDIS_SERVER_PRIMARY, true);
         load(REDIS_SERVER_READS, true);
         load(IP_WHITE_LIST, false);
+        load(ANALYTICS_LOGGING, false);
+        load(ANALYTICS_FALLBACK_PATH, false);
+        load(ANALYTICS_FALLBACK_MAXSIZEMB, false);
 
     }
 
