@@ -1,13 +1,17 @@
 name := "backplane-server"
 
-version := "BP_2_0.2012.45_RC1"
+version := "BP_2_0.2013.26_RC1"
+
+scalaVersion := "2.10.0"
 
 scalacOptions += "-deprecation"
 
 // XXX: Compile in debug mode, otherwise spring throws exceptions
 javacOptions += "-g"
 
-compileOrder := CompileOrder.ScalaThenJava
+//javacOptions += "-Xlint:unchecked"
+
+//compileOrder := CompileOrder.ScalaThenJava
 
 seq(webSettings :_*)
 
@@ -66,14 +70,23 @@ libraryDependencies ++= Seq(
   "com.yammer.metrics" % "metrics-servlet" % "2.1.2",
   "com.yammer.metrics" % "metrics-log4j" % "2.1.2",
   "com.yammer.metrics" % "metrics-graphite" % "2.1.2",
-  "org.scala-lang" % "scala-library" % "2.9.2",
+  "org.scala-lang" % "scala-library" % "2.10.0",
   "com.janrain" % "federate-utils" % "1.2.0",
   // intellij annotations library for @NotNull and @Nullable
   "org.kohsuke.jetbrains" % "annotations" % "9.0",
   "net.sf.ehcache" % "ehcache" % "2.5.2" pomOnly(),
   // Redis
   "redis.clients" % "jedis" % "2.1.0.a",
-  "com.netflix.curator" % "curator-recipes" % "1.1.15"
+  "com.netflix.curator" % "curator-recipes" % "1.1.15",
+  // supersimpledb
+  "com.janrain.commons.supersimpledb" % "commons-supersimpledb" % "1.0.27",
+  // Analytics (flume, akka, scalax, etc.)
+  "com.github.scala-incubator.io" % "scala-io-file_2.10" % "0.4.2",
+  "com.typesafe.akka" % "akka-actor_2.10" % "2.1.1",
+  "log4j" % "log4j" % "1.2.16",
+  "com.cloudera" % "flume-log4j-appender" % "0.9.4-cdh3u3" intransitive(),
+  "com.cloudera" % "flume-core" % "0.9.4-cdh3u3" intransitive(),
+  "org.apache.avro" % "avro-ipc" % "1.5.4" intransitive()
 )
 
 resolvers ++= Seq(
@@ -89,5 +102,6 @@ resolvers ++= Seq(
   "Spy Repository" at "http://files.couchbase.com/maven2/",
   "codehaus-release" at "http://repository.codehaus.org",
   // For the ehcache dependencies
-  "terracotta-releases" at "http://www.terracotta.org/download/reflector/releases"
+  "terracotta-releases" at "http://www.terracotta.org/download/reflector/releases",
+  "cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos/"
 )
