@@ -61,6 +61,9 @@ object AnalyticsLogger {
   val system = ActorSystem("Analytics")
   val loggingActor = system.actorOf(Props(new AnalyticsActor(anilogger)), "analytics-actor")
 
+  // Use this to check if analytics logging is enabled.
+  val isEnabled = appender.isDefined
+
   def log(event_type: String, event_json: String) {
     log("backplane:" + event_type + " " + event_json)
   }
@@ -69,7 +72,7 @@ object AnalyticsLogger {
   // Event message has the form
   //    backplane:<event_type> <event_json>
   def log(msg: Any) {
-    if (appender.isDefined) {
+    if (isEnabled) {
       msg match {
         case msgStr: String => loggingActor ! msgStr
         case msgIt: Iterator[_] => for (msgStr <- msgIt) loggingActor ! msgStr

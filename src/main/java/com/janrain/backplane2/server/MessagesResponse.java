@@ -57,6 +57,10 @@ public class MessagesResponse {
         return messagesResponse;
     }
 
+    public List<BackplaneMessage> getMessages() {
+        return messages;
+    }
+
     // - PRIVATE
 
     private List<BackplaneMessage> messages = new ArrayList<BackplaneMessage>();

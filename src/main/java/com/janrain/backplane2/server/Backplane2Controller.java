@@ -18,17 +18,20 @@ package com.janrain.backplane2.server;
 
 import com.janrain.backplane2.server.config.*;
 import com.janrain.backplane2.server.dao.DAOFactory;
+import com.janrain.backplane.DateTimeUtils;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.crypto.ChannelUtil;
 import com.janrain.crypto.HmacHashUtils;
 import com.janrain.oauth2.*;
 import com.janrain.redis.Redis;
 import com.janrain.servlet.ServletUtil;
+import com.janrain.utils.AnalyticsLogger;
 import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.core.TimerContext;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +42,7 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.UnsupportedEncodingException;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -180,14 +184,22 @@ public class Backplane2Controller {
                                            @RequestParam(required = false) final String bus,
                                            @RequestParam(required = false) final String callback,
                                            @RequestParam(required = false) final String refresh_token,
-                                           @RequestHeader(value = "Authorization", required = false) final String authorizationHeader) {
+                                           @RequestHeader(value = "Authorization", required = false) final String authorizationHeader,
+                                           @RequestHeader(value = "Referer", required = false) String referer) {
 
         ServletUtil.checkSecure(request);
 
         final TimerContext context = getRegularTokenTimer.time();
 
         try {
-            return (new AnonymousTokenRequest(callback, bus, scope, refresh_token, daoFactory, request, authorizationHeader).tokenResponse());
+            Map<String,Object> result = new AnonymousTokenRequest(callback, bus, scope, refresh_token, daoFactory, request, authorizationHeader).tokenResponse();
+            // Refresh token requests are not logged to analytics.
+            if (StringUtils.isNotEmpty(bus)) {
+                aniLogNewChannel(request, referer, bus, (String) result.get(OAUTH2_SCOPE_PARAM_NAME));
+            }
+
+            return result;
+
         } catch (TokenException e) {
             return handleTokenException(e, response);
         } finally {
@@ -264,6 +276,7 @@ public class Backplane2Controller {
                                                      @RequestParam(value = "block", defaultValue = "0", required = false) String block,
                                                      @RequestParam(required = false) String callback,
                                                      @RequestParam(value = "since", required = false) String since,
+                                                     @RequestHeader(value = "Referer", required = false) String referer,
                                                      @RequestHeader(value = "Authorization", required = false) final String authorizationHeader)
             throws SimpleDBException, BackplaneServerException {
 
@@ -299,7 +312,9 @@ public class Backplane2Controller {
                 }
             } while (!exit);
 
-            return bpResponse.asResponseFields(request.getServerName(), token.getType().isPrivileged());
+            Map<String,Object> result = bpResponse.asResponseFields(request.getServerName(), token.getType().isPrivileged());
+            aniLogPollMessages(request, referer, bpResponse.getMessages());
+            return result;
 
         } catch (TokenException te) {
             return handleTokenException(te, response);
@@ -350,7 +365,9 @@ public class Backplane2Controller {
             BackplaneMessage message = daoFactory.getBackplaneMessageDAO().retrieveBackplaneMessage(msg_id, token);
 
             if (message != null) {
-                return message.asFrame(request.getServerName(), token.getType().isPrivileged());
+                Map<String,Object> result = message.asFrame(request.getServerName(), token.getType().isPrivileged());
+                aniLogGetMessage(request, message, token);
+                return result;
             } else {
                 return returnMessage(OAuth2.OAUTH2_TOKEN_INVALID_REQUEST, "Message id '" + msg_id + "' not found",
                         HttpServletResponse.SC_NOT_FOUND, response);
@@ -386,7 +403,11 @@ public class Backplane2Controller {
                 throw new TokenException("Invalid token type: " + token.getType(), HttpServletResponse.SC_FORBIDDEN);
             }
 
-            daoFactory.getBackplaneMessageDAO().persist(parsePostedMessage(messagePostBody, token));
+            BackplaneMessage message = parsePostedMessage(messagePostBody, token);
+            daoFactory.getBackplaneMessageDAO().persist(message);
+
+            aniLogNewMessage(request, message, token);
+
             response.setStatus(HttpServletResponse.SC_CREATED);
             return null;
 
@@ -531,6 +552,9 @@ public class Backplane2Controller {
 
     @Inject
     private Backplane2Config bpConfig;
+
+    @Inject
+    private AnalyticsLogger anilogger;
 
     //private static final Random random = new SecureRandom();
 
@@ -877,6 +901,95 @@ public class Backplane2Controller {
             }
         }
         return channel;
+    }
+
+    private void aniLogNewChannel(HttpServletRequest request, String referer, String bus, String scope) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        int delim = scope.indexOf("channel:");
+        String channel = scope.substring(delim + 8);
+        String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + channel;
+        String siteHost = (referer != null) ? ServletUtil.getHostFromUrl(referer) : null;
+
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+        aniEvent.put("channel_id", channelId);
+        aniEvent.put("bus", bus);
+        aniEvent.put("site_host", siteHost);
+
+        aniLog("new_channel", aniEvent);
+    }
+
+    private void aniLogPollMessages(HttpServletRequest request, String referer, List<BackplaneMessage> messages) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        String siteHost = (referer != null) ? ServletUtil.getHostFromUrl(referer) : null;
+        String serverName = request.getServerName();
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+
+        List<Map<String,String>> messagesMeta = new ArrayList<Map<String,String>>();
+        for (BackplaneMessage message : messages) {
+            String bus = message.getBus();
+            String channelId = "https://" + serverName + "/v2/bus/" + bus + "/channel/" + message.getChannel();
+            Map<String,String> anotherMeta = new HashMap<String,String>();
+            anotherMeta.put("id", message.getIdValue());
+            anotherMeta.put("bus", bus);
+            anotherMeta.put("channel_id", channelId);
+            messagesMeta.add(anotherMeta);
+        }
+        aniEvent.put("messages", messagesMeta);
+        aniEvent.put("site_host", siteHost);
+
+        aniLog("poll_messages", aniEvent);
+    }
+
+    private void aniLogGetMessage(HttpServletRequest request, BackplaneMessage message, Token token) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        String bus = message.getBus();
+        String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + message.getChannel();
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+        aniEvent.put("message_id", message.getIdValue());
+        aniEvent.put("bus", bus);
+        aniEvent.put("channel_id", channelId);
+        aniEvent.put("client_id", token.get(Token.TokenField.ISSUED_TO_CLIENT_ID));
+
+        aniLog("get_message", aniEvent);
+    }
+
+    private void aniLogNewMessage(HttpServletRequest request, BackplaneMessage message, Token token) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        String bus = message.getBus();
+        String channel = message.getChannel();
+        String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + channel;
+        String clientId = token.get(Token.TokenField.ISSUED_TO_CLIENT_ID);
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+        aniEvent.put("channel_id", channelId);
+        aniEvent.put("bus", bus);
+        aniEvent.put("client_id", clientId);
+
+        aniLog("new_message", aniEvent);
+    }
+
+    private void aniLog(String eventName, Map<String,Object> eventData) {
+        ObjectMapper mapper = new ObjectMapper();
+        String time = DateTimeUtils.ISO8601.get().format(new Date(System.currentTimeMillis()));
+        eventData.put("time", time);
+        eventData.put("version", "v2");
+        try {
+            anilogger.log(eventName, mapper.writeValueAsString(eventData));
+        } catch (Exception e) {
+            String errMsg = "Error sending analytics event: " + e.getMessage();
+            logger.error(errMsg, bpConfig.getDebugException(e));
+        }
     }
 
     private final com.yammer.metrics.core.Timer v2GetsTimer =

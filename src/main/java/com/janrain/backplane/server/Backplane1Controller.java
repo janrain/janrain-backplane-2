@@ -22,11 +22,13 @@ import com.janrain.backplane.server.config.BpServerConfig;
 import com.janrain.backplane.server.dao.DaoFactory;
 import com.janrain.backplane.server.dao.redis.RedisBackplaneMessageDAO;
 import com.janrain.backplane2.server.config.User;
+import com.janrain.backplane.DateTimeUtils;
 import com.janrain.cache.CachedL1;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.crypto.HmacHashUtils;
 import com.janrain.servlet.ServletUtil;
 import com.janrain.utils.BackplaneSystemProps;
+import com.janrain.utils.AnalyticsLogger;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Histogram;
 import com.yammer.metrics.core.MetricName;
@@ -208,9 +210,11 @@ public class Backplane1Controller {
 
     @RequestMapping(value = "/{version}/bus/{bus}/channel/{channel}", method = RequestMethod.GET)
     public ResponseEntity<String> getChannel(
+            HttpServletRequest request, HttpServletResponse response,
             @PathVariable String version,
             @PathVariable String bus,
             @PathVariable String channel,
+            @RequestHeader(value = "Referer", required = false) String referer,
             @RequestParam(required = false) String callback,
             @RequestParam(value = "since", required = false) String since,
             @RequestParam(value = "sticky", required = false) String sticky)
@@ -219,13 +223,25 @@ public class Backplane1Controller {
         logger.debug("request started");
 
         try {
+            boolean newChannel = NEW_CHANNEL_LAST_PATH.equals(channel);
+            String resp;
+            List<BackplaneMessage> messages = new ArrayList<BackplaneMessage>();
+
+            if (newChannel) {
+                resp = newChannel();
+                aniLogNewChannel(request, referer, version, bus, resp.substring(1, resp.length()-1));
+            } else {
+                messages = getChannelMessages(bus, channel, since, sticky);
+                resp = messagesToFrames(messages, version);
+                aniLogPollMessages(request, referer, version, bus, channel, messages);
+            }
 
             return new ResponseEntity<String>(
-                    NEW_CHANNEL_LAST_PATH.equals(channel) ? newChannel() : getChannelMessages(bus, channel, since, sticky, version),
-                    new HttpHeaders() {{
-                        add("Content-Type", "application/json");
-                    }},
-                    HttpStatus.OK);
+                resp,
+                new HttpHeaders() {{
+                    add("Content-Type", "application/json");
+                }},
+                HttpStatus.OK);
 
         } finally {
             logger.debug("request ended");
@@ -235,13 +251,14 @@ public class Backplane1Controller {
 
     @RequestMapping(value = "/{version}/bus/{bus}/channel/{channel}", method = RequestMethod.POST)
     public @ResponseBody String postToChannel(
+            HttpServletRequest request, HttpServletResponse response,
             @PathVariable String version,
             @RequestHeader(value = "Authorization", required = false) String basicAuth,
             @RequestBody List<Map<String,Object>> messages,
             @PathVariable String bus,
             @PathVariable String channel) throws AuthException, SimpleDBException, BackplaneServerException {
 
-        checkAuth(basicAuth, bus, BusConfig1.BUS_PERMISSION.POST);
+        User user = checkAuth(basicAuth, bus, BusConfig1.BUS_PERMISSION.POST);
 
         final TimerContext context = postMessagesTime.time();
 
@@ -258,12 +275,17 @@ public class Backplane1Controller {
 
             BusConfig1 busConfig = DaoFactory.getBusDAO().get(bus);
 
+            // For analytics.
+            String channelId = "https://" + request.getServerName() + "/" + version + "/bus/" + bus + "/channel/" + channel;
+            String clientId = user.getIdValue();
+
             for(Map<String,Object> messageData : messages) {
                 BackplaneMessage message = new BackplaneMessage(bus, channel,
                         busConfig.getRetentionTimeSeconds(),
                         busConfig.getRetentionTimeStickySeconds(),
                         messageData);
                 backplaneMessageDAO.persist(message);
+                aniLogNewMessage(version, bus, channelId, clientId);
             }
 
             return "";
@@ -354,9 +376,12 @@ public class Backplane1Controller {
     @Inject
     private Backplane1Config bpConfig;
 
+    @Inject
+    private AnalyticsLogger anilogger;
+
     private static final Random random = new SecureRandom();
 
-    private void checkAuth(String basicAuth, String bus, BusConfig1.BUS_PERMISSION permission) throws AuthException {
+    private User checkAuth(String basicAuth, String bus, BusConfig1.BUS_PERMISSION permission) throws AuthException {
         // authN
         String userPass = null;
         if ( basicAuth == null || ! basicAuth.startsWith("Basic ") || basicAuth.length() < 7) {
@@ -399,6 +424,8 @@ public class Backplane1Controller {
         } else if (!busConfig.getPermissions(user).contains(permission)) {
             authError("User " + user + " denied " + permission + " to " + bus);
         }
+
+        return userEntry;
     }
 
     private void authError(String errMsg) throws AuthException {
@@ -417,18 +444,31 @@ public class Backplane1Controller {
     	return newChannel;
     }
 
-    private String getChannelMessages(final String bus, final String channel, final String since, final String sticky, final String version) throws SimpleDBException, BackplaneServerException {
+    private List<BackplaneMessage> getChannelMessages(final String bus, final String channel, final String since, final String sticky) throws SimpleDBException, BackplaneServerException {
 
         final TimerContext context = getChannelMessagesTime.time();
 
         try {
-            List<BackplaneMessage> messages = DaoFactory.getBackplaneMessageDAO().getMessagesByChannel(bus, channel, since, sticky);
+            return DaoFactory.getBackplaneMessageDAO().getMessagesByChannel(bus, channel, since, sticky);
+        } catch (SimpleDBException sdbe) {
+            throw sdbe;
+        } catch (BackplaneServerException bse) {
+            throw bse;
+        } catch (Exception e) {
+            throw new BackplaneServerException(e.getMessage(), e);
+        } finally {
+            context.stop();
+        }
+    }
+
+    private String messagesToFrames(List<BackplaneMessage> messages, final String version) throws BackplaneServerException {
+
+        try {
             List<Map<String,Object>> frames = new ArrayList<Map<String, Object>>();
 
             for (BackplaneMessage message : messages) {
                 frames.add(message.asFrame(version));
             }
-
             ObjectMapper mapper = new ObjectMapper();
             try {
                 String payload = mapper.writeValueAsString(frames);
@@ -439,14 +479,74 @@ public class Backplane1Controller {
                 logger.error(errMsg, bpConfig.getDebugException(e));
                 throw new BackplaneServerException(errMsg, e);
             }
-        } catch (SimpleDBException sdbe) {
-            throw sdbe;
         } catch (BackplaneServerException bse) {
             throw bse;
         } catch (Exception e) {
             throw new BackplaneServerException(e.getMessage(), e);
-        } finally {
-            context.stop();
+        }
+    }
+
+    private void aniLogNewChannel(HttpServletRequest request, String referer, String version, String bus, String channel) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        String channelId = "https://" + request.getServerName() + "/" + version + "/bus/" + bus + "/channel/" + channel;
+        String siteHost = (referer != null) ? ServletUtil.getHostFromUrl(referer) : null;
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+        aniEvent.put("channel_id", channelId);
+        aniEvent.put("bus", bus);
+        aniEvent.put("version", version);
+        aniEvent.put("site_host", siteHost);
+
+        aniLog("new_channel", aniEvent);
+    }
+
+    private void aniLogPollMessages(HttpServletRequest request, String referer, String version, String bus, String channel, List<BackplaneMessage> messages) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        String channelId = "https://" + request.getServerName() + "/" + version + "/bus/" + bus + "/channel/" + channel;
+        String siteHost = (referer != null) ? ServletUtil.getHostFromUrl(referer) : null;
+
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+        aniEvent.put("channel_id", channelId);
+        aniEvent.put("bus", bus);
+        aniEvent.put("version", version);
+        aniEvent.put("site_host", siteHost);
+        List<String> messageIds = new ArrayList<String>();
+        for (BackplaneMessage message : messages) {
+            messageIds.add(message.getIdValue());
+        }
+        aniEvent.put("message_ids", messageIds);
+
+        aniLog("poll_messages", aniEvent);
+    }
+
+    private void aniLogNewMessage(String version, String bus, String channelId, String clientId) {
+        if (!anilogger.isEnabled()) {
+            return;
+        }
+
+        Map<String,Object> aniEvent = new HashMap<String,Object>();
+        aniEvent.put("channel_id", channelId);
+        aniEvent.put("bus", bus);
+        aniEvent.put("version", version);
+        aniEvent.put("client_id", clientId);
+
+        aniLog("new_message", aniEvent);
+    }
+
+    private void aniLog(String eventName, Map<String,Object> eventData) {
+        ObjectMapper mapper = new ObjectMapper();
+        String time = DateTimeUtils.ISO8601.get().format(new Date(System.currentTimeMillis()));
+        eventData.put("time", time);
+        try {
+            anilogger.log(eventName, mapper.writeValueAsString(eventData));
+        } catch (Exception e) {
+            String errMsg = "Error sending analytics event: " + e.getMessage();
+            logger.error(errMsg, bpConfig.getDebugException(e));
         }
     }
 }
