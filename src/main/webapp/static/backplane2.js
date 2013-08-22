@@ -432,9 +432,14 @@ Backplane.setCookieChannel = function() {
 // Obliterate all existing channel state and fetch a new channel.
 Backplane.resetCookieChannel = function() {
     this.invalidateCache();
+    // Clear out local variables that are no longer valid.
+    this.channelName = null;
+    this.token = null;
+    this.refresh_token = null;
+    // Remove the cookie that caches those variables.
     this.log("Removing backplane2-channel cookie.");
     document.cookie = "backplane2-channel=; expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/";
-    // make the async call to retrieve a server generated channel.
+    // finally, make the async call to retrieve a server generated channel.
     this.fetchNewChannel();
 };
 
