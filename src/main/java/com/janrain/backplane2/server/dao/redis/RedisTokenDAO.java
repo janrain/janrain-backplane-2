@@ -1,6 +1,6 @@
 package com.janrain.backplane2.server.dao.redis;
 
-import com.janrain.backplane2.server.BackplaneServerException;
+import com.janrain.backplane.common.BackplaneServerException;
 import com.janrain.backplane2.server.Token;
 import com.janrain.backplane2.server.dao.TokenDAO;
 import com.janrain.commons.supersimpledb.SimpleDBException;

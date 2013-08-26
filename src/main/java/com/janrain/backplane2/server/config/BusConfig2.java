@@ -17,7 +17,7 @@
 package com.janrain.backplane2.server.config;
 
 import com.janrain.backplane.server.ExternalizableCore;
-import com.janrain.backplane2.server.InvalidRequestException;
+import com.janrain.servlet.InvalidRequestException;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
 
@@ -39,6 +39,13 @@ public class BusConfig2 extends ExternalizableCore {
         d.put(Field.RETENTION_TIME_SECONDS.getFieldName(), retentionTimeSeconds);
         d.put(Field.RETENTION_STICKY_TIME_SECONDS.getFieldName(), retentionTimeStickySeconds);
         super.init(busName, d);
+    }
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public BusConfig2(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(Field.BUS_NAME.getFieldName()), data);
     }
 
     @Override

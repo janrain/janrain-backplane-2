@@ -1,4 +1,3 @@
-<%@ page import="com.janrain.utils.BackplaneSystemProps" %>
 <%@ include file="/WEB-INF/views/include.jsp"
 %><%@page contentType="text/html;charset=UTF-8"
 %><%--
@@ -41,7 +40,7 @@
 <c:choose>
 <c:when test="${not adminUserExists}" >
     <form method=post action="adminadd">
-        Admin user name: <%= BackplaneSystemProps.ADMIN_USER%><input type=hidden name=username value=<%= BackplaneSystemProps.ADMIN_USER%>><br>
+        Admin user name: "bpadmin"<input type=hidden name=username value="bpadmin"><br>
         Admin secret? <input type=text name=password size=30><br>
     <p><input type=submit>
     </form>

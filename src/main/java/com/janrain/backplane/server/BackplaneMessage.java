@@ -16,11 +16,12 @@
 
 package com.janrain.backplane.server;
 
-import com.janrain.backplane.DateTimeUtils;
+import com.janrain.backplane.common.BackplaneServerException;
+import com.janrain.backplane.common.DateTimeUtils;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
 import com.janrain.commons.util.Pair;
-import com.janrain.crypto.ChannelUtil;
+import com.janrain.util.RandomUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -51,6 +52,13 @@ public class BackplaneMessage extends ExternalizableCore {
         d.put(Field.STICKY.getFieldName(), sticky != null ? sticky.toString() : Boolean.FALSE.toString());
         d.put(Field.EXPIRE.getFieldName(), DateTimeUtils.processExpireTime(sticky, data.get(Field.EXPIRE.getFieldName()), defaultExpireSeconds, maxExpireSeconds));
         super.init(id, d);
+    }
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public BackplaneMessage(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(BackplaneMessage.Field.ID.getFieldName()), data);
     }
 
     @Override
@@ -148,7 +156,7 @@ public class BackplaneMessage extends ExternalizableCore {
                 try {
                     DateTimeUtils.INTERNETDATE.get().parse(value);
                 } catch (ParseException e) {
-                    throw new InvalidRequestException("Invalid Internet Date/Time value for " + getFieldName() + ": " + value);
+                    throw new IllegalArgumentException("Invalid Internet Date/Time value for " + getFieldName() + ": " + value);
                 }
             }},
         SOURCE("source") {
@@ -218,7 +226,7 @@ public class BackplaneMessage extends ExternalizableCore {
      * @return a time-based, lexicographically comparable message ID.
      */
     private static String generateMessageId(Date date) {
-        return DateTimeUtils.ISO8601.get().format(date) + "-" + ChannelUtil.randomString(10);
+        return DateTimeUtils.ISO8601.get().format(date) + "-" + RandomUtils.randomString(10);
     }
 
     private String extractFieldValueAsJsonString(Field field, Map<String,Object> data) throws BackplaneServerException {

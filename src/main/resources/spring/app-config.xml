@@ -24,14 +24,10 @@
 		http://www.springframework.org/schema/context
 		http://www.springframework.org/schema/context/spring-context-3.0.xsd">
 
-    <!-- pre-load system properties from application context, if it exists -->
-    <bean id="loadSystemProps" class="com.janrain.utils.BackplaneSystemProps">
-        <constructor-arg type="java.lang.String"><value>/log4j_special.xml</value></constructor-arg>
-    </bean>
+  <bean id="singletonInit" class="com.janrain.backplane.config.ScalaSingletonsInit" />
 
 	<!-- Scans the classpath of this application for @Components to deploy as beans -->
 	<context:component-scan base-package="com.janrain" />
-
 
 	<!-- Application Message Bundle -->
 	<bean id="messageSource" class="org.springframework.context.support.ReloadableResourceBundleMessageSource">
@@ -58,8 +54,8 @@
     <bean id="bpIdFilter" class="com.janrain.servlet.InstanceIdFilter" />
     <bean id="jsonpFilter" class="com.janrain.servlet.JsonpCallbackFilter" />
 
-    <bean id="bpConfig" class="com.janrain.backplane.server.config.Backplane1Config"/>
-    <bean id="bpConfig2" class="com.janrain.backplane2.server.config.Backplane2Config"/>
+    <bean id="bpConfig" class="com.janrain.backplane.config.BackplaneConfig"/>
+    <bean id="bpConfig2" class="com.janrain.backplane.config.BackplaneConfig"/>
 
     <bean id="analyticsLogger" class="com.janrain.utils.AnalyticsLogger"/>
 

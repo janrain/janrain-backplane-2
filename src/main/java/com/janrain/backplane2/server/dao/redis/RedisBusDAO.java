@@ -16,7 +16,7 @@
 
 package com.janrain.backplane2.server.dao.redis;
 
-import com.janrain.backplane2.server.BackplaneServerException;
+import com.janrain.backplane.common.BackplaneServerException;
 import com.janrain.backplane2.server.config.BusConfig2;
 import com.janrain.backplane2.server.dao.BusDAO;
 import com.janrain.backplane2.server.dao.GrantDAO;
@@ -57,7 +57,7 @@ public class RedisBusDAO implements BusDAO {
     }
 
     @Override
-    public void deleteByOwner(String busOwner) throws BackplaneServerException, TokenException {
+    public void deleteByOwner(String busOwner) throws BackplaneServerException {
         List<BusConfig2> buses = getAll();
         for (BusConfig2 busConfig: buses) {
             if (busOwner.equals(busConfig.get(BusConfig2.Field.OWNER))) {
@@ -96,7 +96,7 @@ public class RedisBusDAO implements BusDAO {
     }
 
     @Override
-    public void delete(final String id) throws BackplaneServerException, TokenException {
+    public void delete(final String id) throws BackplaneServerException {
         Jedis jedis = null;
         try {
             logger.info("==== BEGIN BUS " + id + " DELETE ====");
@@ -119,6 +119,8 @@ public class RedisBusDAO implements BusDAO {
             grantDao.deleteByBuses(new ArrayList<String>() {{add(id);}});
             logger.info("Bus " + id + " deleted successfully");
             logger.info("==== END BUS DELETE ====");
+        } catch (TokenException e) {
+            throw new BackplaneServerException("Error deleting buses: " + e.getMessage(), e);
         } finally {
             Redis.getInstance().releaseToPool(jedis);
         }

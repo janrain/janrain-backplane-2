@@ -2,7 +2,7 @@ name := "backplane-server"
 
 version := "BP_2_0.2013.26_RC1"
 
-scalaVersion := "2.10.0"
+scalaVersion := "2.10.2"
 
 scalacOptions += "-deprecation"
 
@@ -12,6 +12,14 @@ javacOptions += "-g"
 //javacOptions += "-Xlint:unchecked"
 
 //compileOrder := CompileOrder.ScalaThenJava
+compileOrder := CompileOrder.Mixed
+
+initialize ~= { _ =>
+  System.setProperty("AWS_INSTANCE_ID", "bp2local")
+  System.setProperty("REDIS_SERVER_PRIMARY", "localhost:6379")
+  System.setProperty("REDIS_SERVER_READS", "localhost:6379")
+  System.setProperty("ZOOKEEPER_SERVERS", "localhost:2181")
+}
 
 seq(webSettings :_*)
 
@@ -51,6 +59,7 @@ libraryDependencies ++= Seq(
   "com.sun.jersey" % "jersey-client" % "1.4",
   // Apache commons
   "commons-lang" % "commons-lang" % "2.5",
+  "commons-codec" % "commons-codec" % "1.4",
   "commons-httpclient" % "commons-httpclient" % "3.1",
   // JSON parser
   "org.codehaus.jackson" % "jackson-mapper-asl" % "1.6.0",
@@ -70,12 +79,16 @@ libraryDependencies ++= Seq(
   "com.yammer.metrics" % "metrics-servlet" % "2.1.2",
   "com.yammer.metrics" % "metrics-log4j" % "2.1.2",
   "com.yammer.metrics" % "metrics-graphite" % "2.1.2",
-  "org.scala-lang" % "scala-library" % "2.10.0",
+  "org.scala-lang" % "scala-library" % "2.10.2",
   "com.janrain" % "federate-utils" % "1.2.0",
+  // Joda time
+  "joda-time" % "joda-time" % "1.6.2",
+  "com.janrain.commons.supersimpledb" % "commons-supersimpledb" % "1.0.27",
   // intellij annotations library for @NotNull and @Nullable
   "org.kohsuke.jetbrains" % "annotations" % "9.0",
-  "net.sf.ehcache" % "ehcache" % "2.5.2" pomOnly(),
+  "net.sf.ehcache" % "ehcache" % "2.5.2",
   // Redis
+  "net.debasishg" % "redisclient_2.10" % "2.10",
   "redis.clients" % "jedis" % "2.1.0.a",
   "com.netflix.curator" % "curator-recipes" % "1.1.15",
   // supersimpledb

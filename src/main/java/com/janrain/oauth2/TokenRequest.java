@@ -16,6 +16,8 @@
 
 package com.janrain.oauth2;
 
+import com.janrain.backplane.dao.DaoException;
+
 import java.util.Map;
 
 /**
@@ -28,5 +30,5 @@ public interface TokenRequest {
     /**
      * @return the token response appropriate for this token (and its grant type)
      */
-    Map<String,Object> tokenResponse() throws TokenException;
+    Map<String,Object> tokenResponse() throws TokenException, DaoException;
 }

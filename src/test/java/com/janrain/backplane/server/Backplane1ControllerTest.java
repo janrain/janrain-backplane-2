@@ -16,9 +16,11 @@
 
 package com.janrain.backplane.server;
 
-import com.janrain.backplane.server.config.Backplane1Config;
-import com.janrain.backplane.server.dao.DaoFactory;
-import com.janrain.backplane2.server.config.User;
+import com.janrain.backplane.server1.dao.BP1DAOs;
+import com.janrain.backplane.server1.model.Backplane1Message;
+import com.janrain.backplane.server1.model.BusConfig1;
+import com.janrain.backplane.server1.model.BusConfig1Fields;
+import com.janrain.backplane.server1.model.BusUser;
 import junit.framework.TestCase;
 import org.apache.catalina.util.Base64;
 import org.apache.log4j.Logger;
@@ -35,6 +37,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.web.servlet.HandlerAdapter;
 
 import javax.inject.Inject;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -46,9 +49,6 @@ import java.util.Map;
 public class Backplane1ControllerTest extends TestCase {
 
     private static final Logger logger = Logger.getLogger(Backplane1ControllerTest.class);
-
-    @Inject
-    private Backplane1Config bpConfig;
 
     @Inject
 	private ApplicationContext applicationContext;
@@ -109,19 +109,30 @@ public class Backplane1ControllerTest extends TestCase {
         String[] versions = new String[]{"1.1", "1.2", "1.3"};
         for (String version : versions) {
             refreshRequestAndResponse();
-            BackplaneMessage message = null;
+            Backplane1Message message = null;
 
             try {
 
-                DaoFactory.getUserDAO().persist(new User("testBusOwner", "busOwnerSecret"));
-                DaoFactory.getBusDAO().persist(new BusConfig1("test", "testBusOwner", "60", "28800"));
+                BP1DAOs.userDao().store(new BusUser("testBusOwner", "busOwnerSecret"));
+
+
+                scala.collection.immutable.Map$.MODULE$.empty();
+
+                Map<String,String> busConfigData = new HashMap<String,String>() {{
+                    put(BusConfig1Fields.BUS_NAME().name(), "test");
+                    put(BusConfig1Fields.POST_USERS().name(), "testBusOwner");
+                    put(BusConfig1Fields.GETALL_USERS().name(), "testBusOwner");
+                    put(BusConfig1Fields.RETENTION_TIME_SECONDS().name(), "60");
+                    put(BusConfig1Fields.RETENTION_STICKY_TIME_SECONDS().name(), "28800");
+                }};
+                BP1DAOs.busDao().store(new BusConfig1(BP1DAOs.asScalaImmutableMap(busConfigData)));
 
                 // encode un:pw
                 String credentials = "testBusOwner:busOwnerSecret";
 
                 Map<String,Object> msg = new ObjectMapper().readValue(TEST_MSG, new TypeReference<Map<String,Object>>() {});
-                message = new BackplaneMessage("test", "test", DEFAULT_MESSAGE_RETENTION_SECONDS, MAX_MESSAGE_RETENTION_SECONDS, msg);
-                DaoFactory.getBackplaneMessageDAO().persist(message);
+                message = new Backplane1Message("test", "test", DEFAULT_MESSAGE_RETENTION_SECONDS, MAX_MESSAGE_RETENTION_SECONDS, msg);
+                BP1DAOs.messageDao().store(message);
 
                 Thread.sleep(1000);
 
@@ -136,10 +147,10 @@ public class Backplane1ControllerTest extends TestCase {
                 assertFalse("passed", response.getContentAsString().contains("[]"));
 
             } finally {
-                DaoFactory.getUserDAO().delete("testBusOwner");
-                DaoFactory.getBusDAO().delete("test");
+                BP1DAOs.userDao().delete("testBusOwner");
+                BP1DAOs.busDao().delete("test");
                 if (message != null) {
-                    DaoFactory.getBackplaneMessageDAO().delete(message.getIdValue());
+                    com.janrain.backplane.server.redisdao.BP1DAOs.getMessageDao().delete(message.id());
                 }
             }
         }

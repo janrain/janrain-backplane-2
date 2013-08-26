@@ -16,8 +16,8 @@
 
 package com.janrain.redis;
 
+import com.janrain.backplane.config.SystemProperties;
 import com.janrain.commons.util.Pair;
-import com.janrain.utils.BackplaneSystemProps;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.recipes.cache.ChildData;
 import com.netflix.curator.framework.recipes.cache.PathChildrenCache;
@@ -247,7 +247,7 @@ public class Redis implements PathChildrenCacheListener {
 
             if (redisServer == null) {
                 // set the node to the default redis server
-                setRedisServer(BackplaneSystemProps.REDIS_SERVER_PRIMARY);
+                setRedisServer(SystemProperties.REDIS_SERVER_PRIMARY());
             } else {
                 // accept the cluster wide redis server
                 currentRedisServerForWrites = redisServer;
@@ -302,7 +302,7 @@ public class Redis implements PathChildrenCacheListener {
         logger.info("redis server set to " + server);
     }
 
-    public void ping() {
+    public void ping(String label) {
 
         Jedis jedisWrite = null;
         Jedis jedisRead = null;
@@ -315,9 +315,9 @@ public class Redis implements PathChildrenCacheListener {
             replyJedisWrite = jedisWrite.ping();
         } catch (Exception e) {
             // something bad
-            logger.warn("error during ping");
+            logger.warn(label + ": error during ping");
         } finally {
-            logger.info("PING " + System.getProperty(BackplaneSystemProps.REDIS_SERVER_PRIMARY) + " (" + BackplaneSystemProps.REDIS_SERVER_PRIMARY + ") -> " + replyJedisWrite);
+            logger.info(label + ": PING " + System.getProperty(SystemProperties.REDIS_SERVER_PRIMARY()) + " (" + SystemProperties.REDIS_SERVER_PRIMARY() + ") -> " + replyJedisWrite);
             releaseToPool(jedisWrite);
         }
 
@@ -326,9 +326,9 @@ public class Redis implements PathChildrenCacheListener {
             replyJedisRead = jedisRead.ping();
         }   catch (Exception e) {
             // something bad
-            logger.warn("error during ping");
+            logger.warn(label + ": error during ping");
         } finally {
-            logger.info("PING " + System.getProperty(BackplaneSystemProps.REDIS_SERVER_READS) + " (" + BackplaneSystemProps.REDIS_SERVER_READS + ") -> " + replyJedisRead);
+            logger.info(label + ": PING " + System.getProperty(SystemProperties.REDIS_SERVER_READS()) + " (" + SystemProperties.REDIS_SERVER_READS() + ") -> " + replyJedisRead);
             releaseToPool(jedisRead);
         }
 
@@ -363,9 +363,9 @@ public class Redis implements PathChildrenCacheListener {
         jedisPoolConfig.setMaxIdle(-1);
         jedisPoolConfig.setMinIdle(50);
 
-        String redisServerConfig = System.getProperty(BackplaneSystemProps.REDIS_SERVER_PRIMARY);
+        String redisServerConfig = System.getProperty(SystemProperties.REDIS_SERVER_PRIMARY());
         if (StringUtils.isEmpty(redisServerConfig)) {
-            logger.error("cannot find configuration entry for " + BackplaneSystemProps.REDIS_SERVER_PRIMARY);
+            logger.error("cannot find configuration entry for " + SystemProperties.REDIS_SERVER_PRIMARY());
             System.exit(1);
         }
         String[] args = redisServerConfig.split(":");
@@ -380,10 +380,10 @@ public class Redis implements PathChildrenCacheListener {
 
         poolForWrites = new Pair<String, JedisPool>(args[0] + ":" + port, new JedisPool(jedisPoolConfig, args[0], port));
 
-        redisServerConfig = System.getProperty(BackplaneSystemProps.REDIS_SERVER_READS);
+        redisServerConfig = System.getProperty(SystemProperties.REDIS_SERVER_READS());
 
         if (StringUtils.isEmpty(redisServerConfig)) {
-            logger.error("cannot find configuration entry for " + BackplaneSystemProps.REDIS_SERVER_READS);
+            logger.error("cannot find configuration entry for " + SystemProperties.REDIS_SERVER_READS());
             System.exit(1);
         }
 

@@ -9,6 +9,7 @@ import org.apache.log4j.{Appender, Logger, FileAppender, PatternLayout}
 import com.cloudera.flume.log4j.appender.FlumeLog4jAvroAppender
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.annotation.PreDestroy
+import com.janrain.backplane.config.SystemProperties
 
 // A logger for analytics messages. Use method 'log' to send a message.
 object AnalyticsLogger {
@@ -19,7 +20,7 @@ object AnalyticsLogger {
   val appender: Option[Appender] = {
     val hostport = "(.+):([0-9]+)".r
     val infoMsg = "Analytics logger output is sent to: "
-    System.getProperty(BackplaneSystemProps.ANALYTICS_LOGGING) match {
+    System.getProperty(SystemProperties.ANALYTICS_LOGGING) match {
       case "file" => {
         val filePath = sys.props("java.io.tmpdir") + "/flume.log"
         logger.info(infoMsg + filePath)
@@ -46,8 +47,8 @@ object AnalyticsLogger {
   val fallback: Option[AnalyticsFallback] = appender map setupFallback
 
   def setupFallback(a: Any): AnalyticsFallback = {
-    val propPath = System.getProperty(BackplaneSystemProps.ANALYTICS_FALLBACK_PATH)
-    val propSize = System.getProperty(BackplaneSystemProps.ANALYTICS_FALLBACK_MAXSIZEMB)
+    val propPath = System.getProperty(SystemProperties.ANALYTICS_FALLBACK_PATH)
+    val propSize = System.getProperty(SystemProperties.ANALYTICS_FALLBACK_MAXSIZEMB)
     val path = if (propPath == null) "/tmp/backplane-analytics-fallback.log"
                else propPath
     logger.info("Analytics fallback file path set to " + path)

@@ -4,8 +4,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,11 +44,6 @@ public enum GrantType {
     public int getTokenExpiresSecondsDefault() {
         int seconds = isPrivileged() ? TOKEN_PRIVILEGED_EXPIRES_SECONDS : TOKEN_ANONYMOUS_EXPIRES_SECONDS;
         return isRefresh() ? 2 * seconds : seconds;
-    }
-
-    public Collection<TokenSource> getTokenAllowedSources() {
-        return ! isPrivileged() ? EnumSet.allOf(TokenSource.class) :
-               isRefresh() ? EnumSet.of(TokenSource.POSTBODY) : EnumSet.of(TokenSource.AUTHHEADER);
     }
 
     /**

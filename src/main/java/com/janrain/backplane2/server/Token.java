@@ -16,28 +16,23 @@
 
 package com.janrain.backplane2.server;
 
-import com.janrain.backplane.DateTimeUtils;
+import com.janrain.backplane.common.DateTimeUtils;
 import com.janrain.backplane.server.ExternalizableCore;
-import com.janrain.backplane2.server.dao.DAOFactory;
+import com.janrain.backplane.server2.model.Backplane2MessageFields;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.AbstractMessage;
 import com.janrain.commons.supersimpledb.message.MessageField;
-import com.janrain.commons.util.Pair;
-import com.janrain.crypto.ChannelUtil;
-import com.janrain.oauth2.OAuth2;
 import com.janrain.oauth2.TokenException;
+import com.janrain.servlet.InvalidRequestException;
+import com.janrain.util.RandomUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.text.ParseException;
 import java.util.*;
 
 import static com.janrain.oauth2.OAuth2.*;
-import static com.janrain.oauth2.OAuth2.OAUTH2_REFRESH_TOKEN_PARAM_NAME;
-import static com.janrain.oauth2.OAuth2.OAUTH2_SCOPE_PARAM_NAME;
 
 /**
  * @author Tom Raney, Johnny Bufu
@@ -50,6 +45,13 @@ public class Token extends ExternalizableCore {
      * Don't call directly.
      */
     public Token() {}
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public Token(Map<String,String> data) throws SimpleDBException {
+        this(data.get(TokenField.ID.getFieldName()), data);
+    }
 
     @Override
     public String getIdValue() {
@@ -70,8 +72,8 @@ public class Token extends ExternalizableCore {
             AbstractMessage.validateNotBlank(TokenField.BACKING_GRANTS.getFieldName(), get(Token.TokenField.BACKING_GRANTS));
         } else {
             Scope anonScope = getScope();
-            LinkedHashSet<String> buses = anonScope.getScopeMap().get(BackplaneMessage.Field.BUS);
-            LinkedHashSet<String> channels = anonScope.getScopeMap().get(BackplaneMessage.Field.CHANNEL);
+            LinkedHashSet<String> buses = anonScope.getScopeMap().get(Backplane2MessageFields.BUS());
+            LinkedHashSet<String> channels = anonScope.getScopeMap().get(Backplane2MessageFields.CHANNEL());
             if (buses == null || buses.size() > 1 || channels == null || channels.size() > 1) {
                 throw new SimpleDBException("invalid scope for anonymous token, must have exactly one bus and one channel specified: " + anonScope);
             }
@@ -123,36 +125,6 @@ public class Token extends ExternalizableCore {
         if (grantType == null) return false;
         String tokenNoPrefix = tokenString.substring(grantType.getTokenPrefix().length());
         return tokenNoPrefix.length() == TOKEN_LENGTH;
-    }
-
-    public static @NotNull Token fromRequest(DAOFactory daoFactory, HttpServletRequest request, String tokenString, String authorizationHeader) throws TokenException {
-        
-        Pair<String, EnumSet<TokenSource>> tokenAndSource = extractToken(request.getQueryString(), tokenString, authorizationHeader);
-
-        if (! Token.looksLikeOurToken(tokenAndSource.getLeft())) {
-            throw new TokenException("invalid token", HttpServletResponse.SC_FORBIDDEN);
-        }
-
-        Token token;
-        try {
-            token = daoFactory.getTokenDao().get(tokenAndSource.getLeft());
-        } catch (BackplaneServerException e) {
-            logger.error("Error looking up token: " + tokenAndSource.getLeft() , e);
-            throw new TokenException(OAuth2.OAUTH2_TOKEN_SERVER_ERROR, "error loading token", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        }
-
-        if (token == null) {
-            logger.warn("token not found: " + tokenAndSource.getLeft());
-            throw new TokenException("invalid token", HttpServletResponse.SC_FORBIDDEN);
-        }
-
-        if (token.isExpired()) {
-            throw new TokenException("expired token", HttpServletResponse.SC_FORBIDDEN);
-        }
-
-        token.checkAllowedSources(tokenAndSource.getRight());
-
-        return token;
     }
 
     public Map<String, Object> response(final String refreshToken) {
@@ -283,7 +255,7 @@ public class Token extends ExternalizableCore {
         }
         
         public Token buildToken() throws SimpleDBException {
-            String id = type.getTokenPrefix() + ChannelUtil.randomString(TOKEN_LENGTH);
+            String id = type.getTokenPrefix() + RandomUtils.randomString(TOKEN_LENGTH);
             data.put(TokenField.ID.getFieldName(), id);
             return new Token(id, data);
         }
@@ -307,48 +279,5 @@ public class Token extends ExternalizableCore {
     private Token(String id, Map<String,String> data) throws SimpleDBException {
         super.init(id, data);
         logger.debug("created token: " + this.toString());
-    }
-
-    private static Pair<String,EnumSet<TokenSource>> extractToken(String queryString, String requestParam, String authHeader) {
-        String token = null;
-        EnumSet<TokenSource> foundIn = EnumSet.noneOf(TokenSource.class);
-
-        if (StringUtils.isNotEmpty(queryString)) {
-            Map<String,String> queryParamsMap = new HashMap<String, String>();
-            for(String queryParamPair : Arrays.asList(queryString.split("&"))) {
-                String[] nameVal = queryParamPair.split("=", 2);
-                queryParamsMap.put(nameVal[0], nameVal.length >1 ? nameVal[1] : null);
-            }
-            if(queryParamsMap.containsKey(OAUTH2_ACCESS_TOKEN_PARAM_NAME)) {
-                token = queryParamsMap.get(OAUTH2_ACCESS_TOKEN_PARAM_NAME);
-                foundIn.add(TokenSource.QUERYPARAM);
-            }
-        }
-
-        if ( ! foundIn.contains(TokenSource.QUERYPARAM) && requestParam != null ) {
-            // query parameter will mask body requestParam extracted by spring with @RequestParameter
-            token = requestParam;
-            foundIn.add(TokenSource.POSTBODY);
-        }
-
-        int tokenTypeLength = OAUTH2_TOKEN_TYPE_BEARER.length();
-        if (authHeader != null && authHeader.startsWith(OAUTH2_TOKEN_TYPE_BEARER) && authHeader.length() > tokenTypeLength + 1) {
-            token = authHeader.substring(tokenTypeLength + 1);
-            foundIn.add(TokenSource.AUTHHEADER);
-        }
-
-        return new Pair<String, EnumSet<TokenSource>>(token, foundIn);
-    }
-
-    private void checkAllowedSources(Collection<TokenSource> tokenFoundIn) throws TokenException {
-        if (tokenFoundIn == null || tokenFoundIn.size() > 1) {
-            throw new TokenException("exactly one token source allowed, found in: " + tokenFoundIn, HttpServletResponse.SC_FORBIDDEN);
-        }
-
-        for(TokenSource tokenSource : tokenFoundIn) {
-            if (! getType().getTokenAllowedSources().contains(tokenSource)) {
-                throw new TokenException("token source not allowed: " + tokenSource, HttpServletResponse.SC_FORBIDDEN);
-            }
-        }
     }
 }

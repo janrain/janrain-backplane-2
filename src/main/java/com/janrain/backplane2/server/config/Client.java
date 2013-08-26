@@ -16,7 +16,7 @@
 
 package com.janrain.backplane2.server.config;
 
-import com.janrain.backplane2.server.InvalidRequestException;
+import com.janrain.servlet.InvalidRequestException;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
 import com.janrain.oauth2.OAuth2;
@@ -30,6 +30,8 @@ import java.util.*;
  */
 public class Client extends User implements Externalizable {
 
+    private static final long serialVersionUID = -7216424765846672928L;
+
     /**
      * Empty default constructor for AWS to use
      */
@@ -42,6 +44,13 @@ public class Client extends User implements Externalizable {
         d.put(ClientField.SOURCE_URL.getFieldName(), source_url);
         d.put(ClientField.REDIRECT_URI.getFieldName(), redirect_uri);
         super.init(client_id, d);
+    }
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public Client(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(Field.USER.getFieldName()), data);
     }
 
     @Override

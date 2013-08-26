@@ -16,7 +16,8 @@
 
 package com.janrain.backplane2.server.dao;
 
-import com.janrain.backplane2.server.BackplaneServerException;
+import com.janrain.backplane.common.BackplaneServerException;
+import com.janrain.backplane.dao.DAOLegacy;
 import com.janrain.backplane2.server.Grant;
 import com.janrain.oauth2.TokenException;
 import org.jetbrains.annotations.NotNull;
@@ -27,7 +28,7 @@ import java.util.List;
  * @author Tom Raney
  */
 
-public interface GrantDAO extends DAO<Grant> {
+public interface GrantDAO extends DAOLegacy<Grant> {
 
     void update(Grant existing, Grant grant) throws BackplaneServerException, TokenException;
     List<Grant> getByClientId(String clientId) throws BackplaneServerException;

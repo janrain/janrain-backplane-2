@@ -16,12 +16,12 @@
 
 package com.janrain.backplane2.server;
 
-import com.janrain.backplane.DateTimeUtils;
+import com.janrain.backplane.common.DateTimeUtils;
 import com.janrain.backplane.server.ExternalizableCore;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
-import com.janrain.crypto.ChannelUtil;
 import com.janrain.oauth2.TokenException;
+import com.janrain.util.RandomUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -40,7 +40,14 @@ public class Grant extends ExternalizableCore {
      * Don't call directly.
      */
     public Grant() {}
-    
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public Grant(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(GrantField.ID.getFieldName()), data);
+    }
+
     @Override
     public String getIdValue() {
         return get(GrantField.ID);
@@ -232,7 +239,7 @@ public class Grant extends ExternalizableCore {
         public Grant buildGrant() throws SimpleDBException {
             String id = data.get(GrantField.ID.getFieldName());
             if ( id == null) {
-                id = ChannelUtil.randomString(CODE_ID_LENGTH);
+                id = RandomUtils.randomString(CODE_ID_LENGTH);
                 data.put(GrantField.ID.getFieldName(), id);
             }
 

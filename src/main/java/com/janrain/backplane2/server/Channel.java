@@ -1,10 +1,10 @@
 package com.janrain.backplane2.server;
 
 import com.janrain.backplane.server.ExternalizableCore;
-import com.janrain.backplane2.server.config.BusConfig2;
+import com.janrain.backplane.server2.model.BusConfig2;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
-import com.janrain.crypto.ChannelUtil;
+import com.janrain.util.RandomUtils;
 
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -16,18 +16,27 @@ import java.util.Set;
  */
 public class Channel extends ExternalizableCore {
 
+    private static final long serialVersionUID = 4892206445886794360L;
+
     @SuppressWarnings("UnusedDeclaration")
     public Channel() { }
 
     public Channel(String channelId, BusConfig2 busConfig, int channelExpireSeconds) throws SimpleDBException {
-        String id = channelId == null ? ChannelUtil.randomString(CHANNEL_NAME_LENGTH) : channelId;
+        String id = channelId == null ? RandomUtils.randomString(CHANNEL_NAME_LENGTH) : channelId;
         Map<String,String> data = new LinkedHashMap<String, String>();
         data.put(ChannelField.ID.getFieldName(), id);
-        data.put(ChannelField.BUS.getFieldName(), busConfig.getIdValue());
+        data.put(ChannelField.BUS.getFieldName(), busConfig.id());
         data.put(ChannelField.EXPIRE_SECONDS.getFieldName(), Integer.toString(channelExpireSeconds));
-        data.put(ChannelField.MESSAGE_EXPIRE_DEFAULT_SECONDS.getFieldName(), Integer.toString(busConfig.getRetentionTimeSeconds()));
-        data.put(ChannelField.MESSAGE_EXPIRE_MAX_SECONDS.getFieldName(), Integer.toString(busConfig.getRetentionTimeStickySeconds()));
+        data.put(ChannelField.MESSAGE_EXPIRE_DEFAULT_SECONDS.getFieldName(), Integer.toString(busConfig.retentionTimeSeconds()));
+        data.put(ChannelField.MESSAGE_EXPIRE_MAX_SECONDS.getFieldName(), Integer.toString(busConfig.retentionTimeStickySeconds()));
         super.init(id, data);
+    }
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public Channel(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(ChannelField.ID.getFieldName()), data);
     }
 
     @Override

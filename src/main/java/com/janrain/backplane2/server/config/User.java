@@ -19,7 +19,7 @@ package com.janrain.backplane2.server.config;
 import com.janrain.backplane.server.ExternalizableCore;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
-import com.janrain.crypto.HmacHashUtils;
+import com.janrain.backplane.common.HmacHashUtils;
 
 import java.util.*;
 
@@ -36,6 +36,13 @@ public class User extends ExternalizableCore {
     }
 
     public User() {}
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public User(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(Field.USER.getFieldName()), data);
+    }
 
     @Override
     public String getIdValue() {

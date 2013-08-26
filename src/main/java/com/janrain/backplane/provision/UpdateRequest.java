@@ -1,0 +1,63 @@
+/*
+ * Copyright 2012 Janrain, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.janrain.backplane.provision;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author Johnny Bufu
+ */
+public class UpdateRequest {
+
+    // - PUBLIC
+
+    public String getAdmin() {
+        return admin;
+    }
+
+    @SuppressWarnings({"UnusedDeclaration"})
+    public void setAdmin(String admin) {
+        this.admin = admin;
+    }
+
+    public String getSecret() {
+        return secret;
+    }
+
+    @SuppressWarnings({"UnusedDeclaration"})
+    public void setSecret(String secret) {
+        this.secret = secret;
+    }
+
+    public List<Map<String,String>> getConfigs() {
+        return configs;
+    }
+
+    @SuppressWarnings({"UnusedDeclaration"})
+    public void setConfigs(List<Map<String,String>> configs) {
+        this.configs = Collections.unmodifiableList(configs);
+    }
+    
+    // - PRIVATE
+
+    private String admin;
+    private String secret;
+
+    private List<Map<String,String>> configs;
+}

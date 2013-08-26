@@ -16,7 +16,10 @@
 
 package com.janrain.oauth2;
 
+import com.janrain.backplane.server2.oauth2.model.AuthorizationRequest;
+import com.janrain.backplane.server2.oauth2.model.AuthorizationRequestFields;
 import org.jetbrains.annotations.Nullable;
+import scala.Option;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -31,8 +34,8 @@ public class AuthorizationException extends OAuth2Exception {
 
     public AuthorizationException(String oauthErrorCode, String message, HttpServletRequest request, @Nullable Throwable cause) {
         super(oauthErrorCode, message, cause);
-        this.redirectUri = request.getParameter(AuthorizationRequest.Field.REDIRECT_URI.getFieldName().toLowerCase());
-        this.state = request.getParameter(AuthorizationRequest.Field.STATE.getFieldName().toLowerCase());
+        this.redirectUri = request.getParameter(AuthorizationRequestFields.REDIRECT_URI().name());
+        this.state = request.getParameter(AuthorizationRequestFields.STATE().name());
     }
 
     public AuthorizationException(String oauthErrorCode, String message, AuthorizationRequest request) {
@@ -41,8 +44,9 @@ public class AuthorizationException extends OAuth2Exception {
 
     public AuthorizationException(String oauthErrorCode, String message, AuthorizationRequest request, @Nullable Throwable cause) {
         super(oauthErrorCode, message, cause);
-        this.redirectUri = request.get(AuthorizationRequest.Field.REDIRECT_URI);
-        this.state = request.get(AuthorizationRequest.Field.STATE);
+        this.redirectUri = request.get(AuthorizationRequestFields.REDIRECT_URI().name()).getOrElse(null);
+        Option<String> stateOption = request.get(AuthorizationRequestFields.STATE().name());
+        this.state = stateOption.isDefined() ? stateOption.get() : null;
     }
 
     public String getRedirectUri() {

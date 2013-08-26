@@ -16,6 +16,7 @@
 
 package com.janrain.backplane2.server;
 
+import com.janrain.servlet.InvalidRequestException;
 import org.apache.commons.lang.StringUtils;
 
 import java.util.Date;

@@ -16,15 +16,23 @@
 
 package com.janrain.backplane2.server;
 
-import com.janrain.backplane2.server.config.*;
-import com.janrain.backplane2.server.dao.DAOFactory;
-import com.janrain.backplane.DateTimeUtils;
+import com.janrain.backplane.common.AuthException;
+import com.janrain.backplane.common.BackplaneServerException;
+import com.janrain.backplane.common.DateTimeUtils;
+import com.janrain.backplane.config.BackplaneConfig;
+import com.janrain.backplane.dao.DaoException;
+import com.janrain.backplane.server2.MessageResponse;
+import com.janrain.backplane.server2.dao.BP2DAOs;
+import com.janrain.backplane.server2.model.*;
+import com.janrain.backplane.server2.model.Channel;
+import com.janrain.backplane.server2.oauth2.model.*;
+import com.janrain.backplane.server2.oauth2.model.Token;
+import com.janrain.backplane.server2.model.Backplane2Message;
 import com.janrain.commons.supersimpledb.SimpleDBException;
-import com.janrain.crypto.ChannelUtil;
-import com.janrain.crypto.HmacHashUtils;
 import com.janrain.oauth2.*;
-import com.janrain.redis.Redis;
-import com.janrain.servlet.ServletUtil;
+import com.janrain.servlet.InvalidRequestException;
+import com.janrain.util.RandomUtils;
+import com.janrain.util.ServletUtil;
 import com.janrain.utils.AnalyticsLogger;
 import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.core.TimerContext;
@@ -36,13 +44,15 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
+import scala.Option;
+import scala.Tuple2;
+import scala.collection.JavaConversions;
 
 import javax.inject.Inject;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.UnsupportedEncodingException;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -83,7 +93,7 @@ public class Backplane2Controller {
                             HttpServletResponse response,
                             @CookieValue( value = AUTH_SESSION_COOKIE, required = false) String authSessionCookie,
                             @CookieValue( value = AUTHORIZATION_REQUEST_COOKIE, required = false) String authorizationRequestCookie)
-            throws AuthorizationException {
+            throws AuthorizationException, DaoException {
 
         AuthorizationRequest authzRequest = null;
         String httpMethod = request.getMethod();
@@ -102,11 +112,11 @@ public class Backplane2Controller {
         if (null == authenticatedBusOwner) {
             if (null != authzRequest) {
                 try {
-                    logger.info("Persisting authorization request for client: " + authzRequest.get(AuthorizationRequest.Field.CLIENT_ID) +
-                                "[" + authzRequest.get(AuthorizationRequest.Field.COOKIE)+"]");
-                    daoFactory.getAuthorizationRequestDAO().persist(authzRequest);
-                    response.addCookie(new Cookie(AUTHORIZATION_REQUEST_COOKIE, authzRequest.get(AuthorizationRequest.Field.COOKIE)));
-                } catch (BackplaneServerException e) {
+                    logger.info("Persisting authorization request for client: " + authzRequest.get(AuthorizationRequestFields.CLIENT_ID()) +
+                                "[" + authzRequest.get(AuthorizationRequestFields.COOKIE())+"]");
+                    com.janrain.backplane.server2.dao.BP2DAOs.authorizationRequestDao().store(authzRequest);
+                    response.addCookie(new Cookie(AUTHORIZATION_REQUEST_COOKIE, authzRequest.get(AuthorizationRequestFields.COOKIE()).get()));
+                } catch (Exception e) {
                     throw new AuthorizationException(OAuth2.OAUTH2_AUTHZ_SERVER_ERROR, e.getMessage(), request, e);
                 }
             }
@@ -120,10 +130,10 @@ public class Backplane2Controller {
                 // return from /authenticate
                 try {
                     logger.debug("bp2.authorization.request cookie = " + authorizationRequestCookie);
-                    authzRequest = daoFactory.getAuthorizationRequestDAO().get(authorizationRequestCookie);
-                    logger.info("Retrieved authorization request for client:" + authzRequest.get(AuthorizationRequest.Field.CLIENT_ID) +
-                                "[" + authzRequest.get(AuthorizationRequest.Field.COOKIE)+"]");
-                } catch (BackplaneServerException e) {
+                    authzRequest = com.janrain.backplane.server2.dao.BP2DAOs.authorizationRequestDao().get(authorizationRequestCookie).get();
+                    logger.info("Retrieved authorization request for client:" + authzRequest.get(AuthorizationRequestFields.CLIENT_ID()) +
+                                "[" + authzRequest.get(AuthorizationRequestFields.COOKIE())+"]");
+                } catch (Exception e) {
                     throw new AuthorizationException(OAuth2.OAUTH2_AUTHZ_SERVER_ERROR, e.getMessage(), request, e);
                 }
             }
@@ -148,7 +158,7 @@ public class Backplane2Controller {
                           HttpServletRequest request,
                           HttpServletResponse response,
                           @RequestParam(required = false) String busOwner,
-                          @RequestParam(required = false) String password) throws AuthException, BackplaneServerException {
+                          @RequestParam(required = false) String password) throws AuthException, BackplaneServerException, DaoException {
 
         ServletUtil.checkSecure(request);
 
@@ -157,7 +167,8 @@ public class Backplane2Controller {
             logger.debug("returning view for GET");
             return new ModelAndView(BUS_OWNER_AUTH_FORM_JSP);
         } else if ("POST".equals(httpMethod)) {
-            checkBusOwnerAuth(busOwner, password);
+            BP2DAOs.busOwnerDao().getAuthenticated(busOwner, password);
+            logger.info("Authenticated bus owner: " + busOwner);
             persistAuthenticatedSession(response, busOwner);
             return new ModelAndView("redirect:https://" + request.getServerName() + "/v2/authorize");
         } else {
@@ -183,16 +194,14 @@ public class Backplane2Controller {
                                            @RequestParam(value = OAUTH2_SCOPE_PARAM_NAME, required = false) final String scope,
                                            @RequestParam(required = false) final String bus,
                                            @RequestParam(required = false) final String callback,
-                                           @RequestParam(required = false) final String refresh_token,
-                                           @RequestHeader(value = "Authorization", required = false) final String authorizationHeader,
-                                           @RequestHeader(value = "Referer", required = false) String referer) {
+                                           @RequestHeader(value = "Referer", required = false) String referer) throws DaoException {
 
         ServletUtil.checkSecure(request);
 
         final TimerContext context = getRegularTokenTimer.time();
 
         try {
-            Map<String,Object> result = new AnonymousTokenRequest(callback, bus, scope, refresh_token, daoFactory, request, authorizationHeader).tokenResponse();
+            Map<String,Object> result = new AnonymousTokenRequest(callback, bus, scope, request).tokenResponse();
             // Refresh token requests are not logged to analytics.
             if (StringUtils.isNotEmpty(bus)) {
                 aniLogNewChannel(request, referer, bus, (String) result.get(OAUTH2_SCOPE_PARAM_NAME));
@@ -232,7 +241,6 @@ public class Backplane2Controller {
                                         @RequestParam(value = "code", required = false) String code,
                                         @RequestParam(value = "client_secret", required = false) String client_secret,
                                         @RequestParam(value = "scope", required = false) String scope,
-                                        @RequestParam(required = false) String refresh_token,
                                         @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
 
         ServletUtil.checkSecure(request);
@@ -244,8 +252,7 @@ public class Backplane2Controller {
             Client authenticatedClient = getAuthenticatedClient(authorizationHeader);
 
             return (new AuthenticatedTokenRequest(
-                    grant_type, authenticatedClient, code, redirect_uri, refresh_token, scope,
-                    daoFactory, request, authorizationHeader)).tokenResponse();
+                    grant_type, authenticatedClient, code, redirect_uri, scope, request)).tokenResponse();
         } catch (TokenException e) {
             return handleTokenException(e, response);
         } catch (AuthException e) {
@@ -272,12 +279,10 @@ public class Backplane2Controller {
 
     @RequestMapping(value = "/messages", method = { RequestMethod.GET})
     public @ResponseBody Map<String,Object> messages(final HttpServletRequest request, HttpServletResponse response,
-                                                     @RequestParam(value = OAUTH2_ACCESS_TOKEN_PARAM_NAME, required = false) final String access_token,
                                                      @RequestParam(value = "block", defaultValue = "0", required = false) String block,
                                                      @RequestParam(required = false) String callback,
                                                      @RequestParam(value = "since", required = false) String since,
-                                                     @RequestHeader(value = "Referer", required = false) String referer,
-                                                     @RequestHeader(value = "Authorization", required = false) final String authorizationHeader)
+                                                     @RequestHeader(value = "Referer", required = false) String referer)
             throws SimpleDBException, BackplaneServerException {
 
         ServletUtil.checkSecure(request);
@@ -291,35 +296,24 @@ public class Backplane2Controller {
         try {
             MessageRequest messageRequest = new MessageRequest(callback, since, block);
 
-            Token token = Token.fromRequest(daoFactory, request, access_token, authorizationHeader);
-            if (token.getType().isRefresh()) {
-                return returnMessage(OAuth2.OAUTH2_TOKEN_INVALID_REQUEST, "Invalid token type: " + token.getType(),
+            Option<Token> token = Token.fromRequest(request);
+            if ( ! token.isDefined()) {
+              throw new TokenException("invalid token", HttpServletResponse.SC_FORBIDDEN);
+            }
+            if (token.get().grantType().isRefresh()) {
+                return returnMessage(OAuth2.OAUTH2_TOKEN_INVALID_REQUEST, "Invalid token type: " + token.get().grantType(),
                         HttpServletResponse.SC_FORBIDDEN, response);
             }
 
-            MessagesResponse bpResponse = new MessagesResponse(messageRequest.getSince());
-            boolean exit = false;
-            do {
-                daoFactory.getBackplaneMessageDAO().retrieveMessagesPerScope(bpResponse, token);
-                if (!bpResponse.hasMessages() && new Date().before(messageRequest.getReturnBefore())) {
-                    try {
-                        Thread.sleep(MESSAGES_POLL_SLEEP_MILLIS);
-                    } catch (InterruptedException e) {
-                        //ignore
-                    }
-                } else {
-                    exit = true;
-                }
-            } while (!exit);
-
-            Map<String,Object> result = bpResponse.asResponseFields(request.getServerName(), token.getType().isPrivileged());
-            aniLogPollMessages(request, referer, bpResponse.getMessages());
-            return result;
+            // val (framesResult, messages) = ...
+            Tuple2<Map<String,Object>,scala.collection.immutable.List<Backplane2Message>> framesResultAndMessages = MessageResponse.scalaObject().apply(
+                    request.getServerName(), token.get().grantType().isPrivileged(),
+                    token.get().scope(), messageRequest.getSince(), MESSAGES_POLL_SLEEP_MILLIS, messageRequest.getReturnBefore());
+            aniLogPollMessages(request, referer, JavaConversions.asJavaList(framesResultAndMessages._2()));
+            return framesResultAndMessages._1();
 
         } catch (TokenException te) {
             return handleTokenException(te, response);
-        } catch (BackplaneServerException bse) {
-            throw bse;
         } catch (InvalidRequestException ire) {
             throw ire;
         } catch (Exception e) {
@@ -331,6 +325,23 @@ public class Backplane2Controller {
         }
     }
 
+/*
+    public Map<String, Object> asResponseFields(String serverName, boolean privileged) throws BackplaneServerException {
+        List<Map<String,Object>> frames = new ArrayList<Map<String, Object>>();
+        for (Backplane2Message message : messages) {
+            frames.add(message.asFrame(serverName, privileged));
+        }
+
+        Map<String, Object> messagesResponse = new HashMap<String, Object>();
+        messagesResponse.put("nextURL", "https://" + serverName + "/v2/messages" +
+                (!StringUtils.isBlank(lastMessageId) ? "?since=" + lastMessageId : ""));
+        messagesResponse.put("moreMessages", moreMessages);
+        messagesResponse.put("messages", frames);
+        return messagesResponse;
+    }
+*/
+
+
     /**
      * Retrieve a single message from the server.
      *
@@ -341,10 +352,8 @@ public class Backplane2Controller {
     @RequestMapping(value = "/message/{msg_id:.*}", method = { RequestMethod.GET})
     public @ResponseBody Map<String,Object> message(HttpServletRequest request, HttpServletResponse response,
                                 @PathVariable final String msg_id,
-                                @RequestParam(value = OAUTH2_ACCESS_TOKEN_PARAM_NAME, required = false) String access_token,
-                                @RequestParam(required = false) String callback,
-                                @RequestHeader(value = "Authorization", required = false) String authorizationHeader)
-            throws BackplaneServerException, SimpleDBException {
+                                @RequestParam(required = false) String callback)
+            throws BackplaneServerException, SimpleDBException, DaoException {
 
         ServletUtil.checkSecure(request);
 
@@ -357,16 +366,22 @@ public class Backplane2Controller {
         }
 
         try {
-            Token token = Token.fromRequest(daoFactory, request, access_token, authorizationHeader);
-            if (token.getType().isRefresh()) {
-                throw new TokenException("Invalid token type: " + token.getType(), HttpServletResponse.SC_FORBIDDEN);
+            Option<Token> token = Token.fromRequest(request);
+            if ( ! token.isDefined()) {
+                throw new TokenException("invalid token", HttpServletResponse.SC_FORBIDDEN);
+            }
+            if (token.get().grantType().isRefresh()) {
+                throw new TokenException("Invalid token type: " + token.get().grantType(), HttpServletResponse.SC_FORBIDDEN);
             }
 
-            BackplaneMessage message = daoFactory.getBackplaneMessageDAO().retrieveBackplaneMessage(msg_id, token);
+            Backplane2Message message = BP2DAOs.messageDao().get(msg_id).getOrElse(null);
 
             if (message != null) {
-                Map<String,Object> result = message.asFrame(request.getServerName(), token.getType().isPrivileged());
-                aniLogGetMessage(request, message, token);
+                if (! token.get().scope().isMessageInScope(message)) {
+                    throw new TokenException("Message id '" + msg_id + "' not found", HttpServletResponse.SC_NOT_FOUND);
+                }
+                Map<String,Object> result = JavaConversions.mapAsJavaMap(message.asFrame(request.getServerName(), token.get().grantType().isPrivileged()));
+                aniLogGetMessage(request, message, token.get());
                 return result;
             } else {
                 return returnMessage(OAuth2.OAUTH2_TOKEN_INVALID_REQUEST, "Message id '" + msg_id + "' not found",
@@ -388,9 +403,7 @@ public class Backplane2Controller {
     @RequestMapping(value = "/message", method = { RequestMethod.POST})
     public @ResponseBody Map<String,Object>  postMessages(
             HttpServletRequest request, HttpServletResponse response,
-            @RequestBody Map<String,Map<String,Object>> messagePostBody,
-            @RequestParam(value = OAUTH2_ACCESS_TOKEN_PARAM_NAME, required = false) String access_token,
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader)
+            @RequestBody Map<String,Map<String,Object>> messagePostBody)
             throws SimpleDBException, BackplaneServerException {
 
         ServletUtil.checkSecure(request);
@@ -398,16 +411,18 @@ public class Backplane2Controller {
         final TimerContext context = v2PostTimer.time();
 
         try {
-            Token token = Token.fromRequest(daoFactory, request, access_token, authorizationHeader);
-            if ( token.getType().isRefresh() || ! token.getType().isPrivileged() ) {
-                throw new TokenException("Invalid token type: " + token.getType(), HttpServletResponse.SC_FORBIDDEN);
+            Option<Token> token = Token.fromRequest(request);
+            if ( ! token.isDefined()) {
+                throw new TokenException("invalid token", HttpServletResponse.SC_FORBIDDEN);
+            }
+            if ( token.get().grantType().isRefresh() || ! token.get().grantType().isPrivileged() ) {
+                throw new TokenException("Invalid token type: " + token.get().grantType(), HttpServletResponse.SC_FORBIDDEN);
             }
 
-            BackplaneMessage message = parsePostedMessage(messagePostBody, token);
-            daoFactory.getBackplaneMessageDAO().persist(message);
+            Backplane2Message message = parsePostedMessage(messagePostBody, token.get());
+            BP2DAOs.messageDao().store(message);
 
-            aniLogNewMessage(request, message, token);
-
+            aniLogNewMessage(request, message, token.get());
             response.setStatus(HttpServletResponse.SC_CREATED);
             return null;
 
@@ -438,7 +453,7 @@ public class Backplane2Controller {
     @ExceptionHandler
     @ResponseBody
     public Map<String,Object> handleTokenException(final TokenException e, HttpServletResponse response) {
-        logger.warn("Error processing token request: " + e.getMessage(), bpConfig.getDebugException(e));
+        logger.warn("Error processing token request: " + e.getMessage(), BackplaneConfig.getDebugException(e));
         response.setStatus(e.getHttpResponseCode());
         return new HashMap<String,Object>() {{
             put(ERR_MSG_FIELD, e.getOauthErrorCode());
@@ -452,7 +467,7 @@ public class Backplane2Controller {
     @ExceptionHandler
     @ResponseBody
     public Map<String, String> handle(final AuthException e, HttpServletResponse response) {
-        logger.warn("Backplane authentication error: " + e.getMessage(), bpConfig.getDebugException(e));
+        logger.warn("Backplane authentication error: " + e.getMessage(), BackplaneConfig.getDebugException(e));
         response.setStatus(SC_UNAUTHORIZED);
         return new HashMap<String,String>() {{
             put(ERR_MSG_FIELD, e.getMessage());
@@ -465,7 +480,7 @@ public class Backplane2Controller {
     @ExceptionHandler
     @ResponseBody
     public Map<String, Object> handleInvalidRequest(final InvalidRequestException e, HttpServletResponse response) {
-        logger.error("Error handling backplane request: " + e.getMessage(), bpConfig.getDebugException(e));
+        logger.error("Error handling backplane request: " + e.getMessage(), BackplaneConfig.getDebugException(e));
         response.setStatus(e.getHttpResponseCode());
         return new HashMap<String,Object>() {{
             put(ERR_MSG_FIELD, e.getMessage());
@@ -482,7 +497,7 @@ public class Backplane2Controller {
     @ExceptionHandler
     @ResponseBody
     public Map<String, Object> handleInvalidRequest(final HttpRequestMethodNotSupportedException e, HttpServletResponse response) {
-        logger.warn("Error handling backplane request: " + e.getMessage(), bpConfig.getDebugException(e));
+        logger.warn("Error handling backplane request: " + e.getMessage(), BackplaneConfig.getDebugException(e));
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         return new HashMap<String,Object>() {{
             put(ERR_MSG_FIELD, e.getMessage());
@@ -495,10 +510,10 @@ public class Backplane2Controller {
     @ExceptionHandler
     @ResponseBody
     public Map<String, String> handle(final Exception e, HttpServletResponse response) {
-        logger.error("Error handling backplane request: " + e.getMessage(), bpConfig.getDebugException(e));
+        logger.error("Error handling backplane request: " + e.getMessage(), BackplaneConfig.getDebugException(e));
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         return new HashMap<String,String>() {{
-                put(ERR_MSG_FIELD, bpConfig.isDebugMode() ? e.getMessage() : "Error processing request.");
+                put(ERR_MSG_FIELD, BackplaneConfig.isDebugMode() ? e.getMessage() : "Error processing request.");
         }};
     }
 
@@ -548,51 +563,30 @@ public class Backplane2Controller {
     private static final int MESSAGES_POLL_SLEEP_MILLIS = 3000;
 
     @Inject
-    private DAOFactory daoFactory;
-
-    @Inject
-    private Backplane2Config bpConfig;
-
-    @Inject
     private AnalyticsLogger anilogger;
 
-    //private static final Random random = new SecureRandom();
-
-    private void checkBusOwnerAuth(String busOwner, String password) throws AuthException {
-        User busOwnerEntry = null;
+    private void persistAuthenticatedSession(HttpServletResponse response, String busOwner) throws BackplaneServerException, DaoException {
         try {
-            busOwnerEntry = daoFactory.getBusOwnerDAO().get(busOwner);
-        } catch (BackplaneServerException e) {
-            logger.error("Error looking up bus owner user: " + busOwner, e);
-            authError("Error looking up bus owner user: " + busOwner);
-        }
-
-        if (busOwnerEntry == null) {
-            authError("Bus owner user not found: " + busOwner);
-        } else if ( ! HmacHashUtils.checkHmacHash(password, busOwnerEntry.get(User.Field.PWDHASH)) ) {
-            authError("Incorrect password for bus owner user " + busOwner);
-        }
-        logger.info("Authenticated bus owner: " + busOwner);
-    }
-
-    private void persistAuthenticatedSession(HttpServletResponse response, String busOwner) throws BackplaneServerException {
-        try {
-            String authCookie = ChannelUtil.randomString(AUTH_SESSION_COOKIE_LENGTH);
-            daoFactory.getAuthSessionDAO().persist(new AuthSession(busOwner, authCookie));
+            String authCookie = RandomUtils.randomString(AUTH_SESSION_COOKIE_LENGTH);
+            com.janrain.backplane.server2.dao.BP2DAOs.authSessionDao().store(new AuthSession(busOwner, authCookie));
             response.addCookie(new Cookie(AUTH_SESSION_COOKIE, authCookie));
-        } catch (SimpleDBException e) {
+        } catch (Exception e) {
             throw new BackplaneServerException(e.getMessage());
         }
     }
 
-    private String getAuthenticatedBusOwner(HttpServletRequest request, String authSessionCookie) {
+    private String getAuthenticatedBusOwner(HttpServletRequest request, String authSessionCookie) throws DaoException {
         if (authSessionCookie == null) return null;
         try {
-            AuthSession authSession = daoFactory.getAuthSessionDAO().get(authSessionCookie);
-            String authenticatedOwner = authSession.get(AuthSession.Field.AUTH_USER);
-            logger.info("Session found for previously authenticated bus owner: " + authenticatedOwner);
-            return authenticatedOwner;
-        } catch (BackplaneServerException e) {
+            AuthSession authSession = com.janrain.backplane.server2.dao.BP2DAOs.authSessionDao().get(authSessionCookie).getOrElse(null);
+            if (authSession == null) {
+                return null;
+            } else {
+                String authenticatedOwner = authSession.get(AuthSessionFields.AUTH_USER()).get();
+                logger.info("Session found for previously authenticated bus owner: " + authenticatedOwner);
+                return authenticatedOwner;
+            }
+        } catch (Exception e) {
             logger.error("Error looking up session for cookie: " + authSessionCookie, e);
             return null;
         }
@@ -601,7 +595,7 @@ public class Backplane2Controller {
     private void authError(String errMsg) throws AuthException {
         logger.error(errMsg);
         try {
-            throw new AuthException("Access denied. " + (bpConfig.isDebugMode() ? errMsg : ""));
+            throw new AuthException("Access denied. " + (BackplaneConfig.isDebugMode() ? errMsg : ""));
         } catch (Exception e) {
             throw new AuthException("Access denied.");
         }
@@ -621,8 +615,8 @@ public class Backplane2Controller {
         try {
             // parse authz request
             AuthorizationRequest authorizationRequest = new AuthorizationRequest(
-                    ChannelUtil.randomString(AUTHORIZATION_REQUEST_COOKIE_LENGTH),
-                    request.getParameterMap());
+                    RandomUtils.randomString(AUTHORIZATION_REQUEST_COOKIE_LENGTH),
+                    ServletUtil.singleValueRequestParams(request));
             logger.info("Parsed authorization request: " + authorizationRequest);
             return authorizationRequest;
         } catch (Exception e) {
@@ -651,22 +645,8 @@ public class Backplane2Controller {
         String client = userPass.substring(0, delim);
         String pass = userPass.substring(delim + 1);
 
-        Client clientEntry = null;
-        try {
-            clientEntry = daoFactory.getClientDAO().get(client);
-        } catch (BackplaneServerException e) {
-            logger.error("Error looking up client: " + client, e);
-            authError("Error looking up client: " + client);
-        }
 
-        if (clientEntry == null) {
-            authError("Client not found: " + client);
-        } else if (!HmacHashUtils.checkHmacHash(pass, clientEntry.get(Client.Field.PWDHASH))) {
-            authError("Incorrect password for client " + client);
-        }
-
-        logger.info("Authenticated client: " + client);
-        return clientEntry;
+        return BP2DAOs.clientDao().getAuthenticated(client, pass);
     }
 
     /** Present an authorization form to the bus owner and obtain authorization decision */
@@ -677,18 +657,19 @@ public class Backplane2Controller {
         logger.debug("generate & persist authZdecisionKey");
         try {
             AuthorizationDecisionKey authorizationDecisionKey = new AuthorizationDecisionKey(authSessionCookie);
-            daoFactory.getAuthorizationDecisionKeyDAO().persist(authorizationDecisionKey);
+            com.janrain.backplane.server2.dao.BP2DAOs.authorizationDecisionKeyDao().store(authorizationDecisionKey);
 
-            model.put("auth_key", authorizationDecisionKey.get(AuthorizationDecisionKey.Field.KEY));
-            model.put(AuthorizationRequest.Field.CLIENT_ID.getFieldName().toLowerCase(), authzRequest.get(AuthorizationRequest.Field.CLIENT_ID));
-            model.put(AuthorizationRequest.Field.REDIRECT_URI.getFieldName().toLowerCase(), authzRequest.getRedirectUri(daoFactory.getClientDAO()));
+            model.put("auth_key", authorizationDecisionKey.get(AuthorizationDecisionKeyFields.KEY()).get());
+            model.put(AuthorizationRequestFields.CLIENT_ID().name().toLowerCase(), (String) authzRequest.get(AuthorizationRequestFields.CLIENT_ID().name()).getOrElse(null));
+            model.put(AuthorizationRequestFields.REDIRECT_URI().name().toLowerCase(), authzRequest.getRedirectUri());
 
-            String scope = authzRequest.get(AuthorizationRequest.Field.SCOPE);
-            model.put(AuthorizationRequest.Field.SCOPE.getFieldName().toLowerCase(), checkScope(scope, authenticatedBusOwner) );
+            Option<String> scopeOption = authzRequest.get(AuthorizationRequestFields.SCOPE().name());
+            String scope = scopeOption.isDefined() ? scopeOption.get() : null;
+            model.put(AuthorizationRequestFields.SCOPE().name().toLowerCase(), checkScope(scope, authenticatedBusOwner) );
 
             // return authZ form
-            logger.info("Requesting bus owner authorization for :" + authzRequest.get(AuthorizationRequest.Field.CLIENT_ID) +
-                    "[" + authzRequest.get(AuthorizationRequest.Field.COOKIE)+"]");
+            logger.info("Requesting bus owner authorization for :" + authzRequest.get(AuthorizationRequestFields.CLIENT_ID()) +
+                    "[" + authzRequest.get(AuthorizationRequestFields.COOKIE())+"]");
             return new ModelAndView(CLIENT_AUTHORIZATION_FORM_JSP, model);
 
         } catch (Exception e) {
@@ -698,11 +679,11 @@ public class Backplane2Controller {
 
     private String checkScope(String scope, String authenticatedBusOwner) throws BackplaneServerException {
         StringBuilder result = new StringBuilder();
-        List<BusConfig2> ownedBuses = daoFactory.getBusDao().retrieveByOwner(authenticatedBusOwner);
+        List<BusConfig2> ownedBuses = JavaConversions.seqAsJavaList(BP2DAOs.busDao().retrieveByOwner(authenticatedBusOwner));
         if(StringUtils.isEmpty(scope)) {
             // request scope empty, ask/offer permission to all owned buses
             for(BusConfig2 bus : ownedBuses) {
-                result.append("bus:").append(bus.get(BusConfig2.Field.BUS_NAME)).append(" ");
+                result.append("bus:").append(bus.get(BusConfig2Fields.BUS_NAME())).append(" ");
             }
             if(result.length() > 0) {
                 result.deleteCharAt(result.length()-1);
@@ -710,7 +691,7 @@ public class Backplane2Controller {
         } else {
             List<String> ownedBusNames = new ArrayList<String>();
             for(BusConfig2 bus : ownedBuses) {
-                ownedBusNames.add(bus.get(BusConfig2.Field.BUS_NAME));
+                ownedBusNames.add(bus.id());
             }
             for(String scopeToken : scope.split(" ")) {
                 if(scopeToken.startsWith("bus:")) {
@@ -740,11 +721,11 @@ public class Backplane2Controller {
 
         try {
             // retrieve authorization request
-            authorizationRequest = daoFactory.getAuthorizationRequestDAO().get(authorizationRequestCookie);
+            authorizationRequest = com.janrain.backplane.server2.dao.BP2DAOs.authorizationRequestDao().get(authorizationRequestCookie).get();
 
             // check authZdecisionKey
-            AuthorizationDecisionKey authZdecisionKeyEntry = daoFactory.getAuthorizationDecisionKeyDAO().get(authZdecisionKey);
-            if (null == authZdecisionKeyEntry || ! authSessionCookie.equals(authZdecisionKeyEntry.get(AuthorizationDecisionKey.Field.AUTH_COOKIE))) {
+            AuthorizationDecisionKey authZdecisionKeyEntry = com.janrain.backplane.server2.dao.BP2DAOs.authorizationDecisionKeyDao().get(authZdecisionKey).getOrElse(null);
+            if (null == authZdecisionKeyEntry || ! authSessionCookie.equals(authZdecisionKeyEntry.get(AuthorizationDecisionKeyFields.AUTH_COOKIE()).getOrElse(null))) {
                 throw new AuthorizationException(OAuth2.OAUTH2_AUTHZ_ACCESS_DENIED, "Presented authorization key was issued to a different authenticated bus owner.", authorizationRequest);
             }
 
@@ -752,24 +733,26 @@ public class Backplane2Controller {
                 throw new AuthorizationException(OAuth2.OAUTH2_AUTHZ_ACCESS_DENIED, "Bus owner denied authorization.", authorizationRequest);
             } else {
                 // todo: use (and check) scope posted back by bus owner
-                String scopeString = checkScope(authorizationRequest.get(AuthorizationRequest.Field.SCOPE), authenticatedBusOwner);
+                Option<String> scopeOption = authorizationRequest.get(AuthorizationRequestFields.SCOPE());
+                String scopeString = checkScope(scopeOption.isDefined() ? scopeOption.get() : null, authenticatedBusOwner);
                 // create grant/code
-                Grant grant =  new Grant.Builder(GrantType.AUTHORIZATION_CODE, GrantState.INACTIVE,
+                Grant2 grant =  new GrantBuilder(GrantType.AUTHORIZATION_CODE, GrantState.INACTIVE,
                             authenticatedBusOwner,
-                            authorizationRequest.get(AuthorizationRequest.Field.CLIENT_ID),
+                            authorizationRequest.get(AuthorizationRequestFields.CLIENT_ID()).get(),
                             scopeString).buildGrant();
-                daoFactory.getGrantDao().persist(grant);
-                
-                logger.info("Authorized " + authorizationRequest.get(AuthorizationRequest.Field.CLIENT_ID)+
-                        "[" + authorizationRequest.get(AuthorizationRequest.Field.COOKIE)+"]" + "grant ID: " + grant.getIdValue());
+                BP2DAOs.grantDao().store(grant);
+
+                logger.info("Authorized " + authorizationRequest.get(AuthorizationRequestFields.CLIENT_ID())+
+                        "[" + authorizationRequest.get(AuthorizationRequestFields.COOKIE())+"]" + "grant ID: " + grant.id());
 
                 // return OAuth2 authz response
-                final String code = grant.getIdValue();
-                final String state = authorizationRequest.get(AuthorizationRequest.Field.STATE);
+                final String code = grant.id();
+                Option<String> stateOption = authorizationRequest.get(AuthorizationRequestFields.STATE());
+                final String state = scopeOption.isDefined() ? scopeOption.get() : null;
 
                 try {
                     return new ModelAndView("redirect:" + UrlResponseFormat.QUERY.encode(
-                            authorizationRequest.getRedirectUri(daoFactory.getClientDAO()),
+                            authorizationRequest.getRedirectUri(),
                             new HashMap<String, String>() {{
                                 put(OAuth2.OAUTH2_AUTHZ_RESPONSE_CODE, code);
                                 if (StringUtils.isNotEmpty(state)) {
@@ -780,8 +763,8 @@ public class Backplane2Controller {
                     String errMsg = "Error building (positive) authorization response: " + ve.getMessage();
                     logger.error(errMsg, ve);
                     return authzRequestError(OAuth2.OAUTH2_AUTHZ_DIRECT_ERROR, errMsg,
-                            authorizationRequest.getRedirectUri(daoFactory.getClientDAO()),
-                            authorizationRequest.get(AuthorizationRequest.Field.STATE));
+                            authorizationRequest.getRedirectUri(),
+                            (String)authorizationRequest.get(AuthorizationRequestFields.STATE()).getOrElse(null));
                 }
             }
         } catch (Exception e) {
@@ -805,7 +788,7 @@ public class Backplane2Controller {
                             put(OAuth2.OAUTH2_AUTHZ_ERROR_FIELD_NAME, oauthErrCode);
                             put(OAuth2.OAUTH2_AUTHZ_ERROR_DESC_FIELD_NAME, errMsg);
                             if (StringUtils.isNotEmpty(state)) {
-                                put(AuthorizationRequest.Field.STATE.getFieldName(), state);
+                                put(AuthorizationRequestFields.STATE().name(), state);
                             }
                         }}));
 
@@ -843,8 +826,8 @@ public class Backplane2Controller {
         }
     }
 
-    private BackplaneMessage parsePostedMessage(Map<String, Map<String, Object>> messagePostBody, Token token) throws BackplaneServerException {
-        List<BackplaneMessage> result = new ArrayList<BackplaneMessage>();
+    private Backplane2Message parsePostedMessage(Map<String, Map<String, Object>> messagePostBody, Token token) throws BackplaneServerException, DaoException {
+        List<Backplane2Message> result = new ArrayList<Backplane2Message>();
 
         Map<String,Object> msg = messagePostBody.get("message");
         if (msg == null) { // no message body?
@@ -855,52 +838,38 @@ public class Backplane2Controller {
             throw new InvalidRequestException("Invalid data in payload", HttpServletResponse.SC_BAD_REQUEST);
         }
 
-        String channelId = msg.get(BackplaneMessage.Field.CHANNEL.getFieldName()) != null ? msg.get(BackplaneMessage.Field.CHANNEL.getFieldName()).toString() : null;
-        String bus = msg.get(BackplaneMessage.Field.BUS.getFieldName()) != null ? msg.get(BackplaneMessage.Field.BUS.getFieldName()).toString() : null;
+        String channelId = msg.get(Backplane2MessageFields.CHANNEL().name()) != null ? msg.get(Backplane2MessageFields.CHANNEL().name()).toString() : null;
+        String bus = msg.get(Backplane2MessageFields.BUS().name()) != null ? msg.get(Backplane2MessageFields.BUS().name()).toString() : null;
         Channel channel = getChannel(channelId);
-        String boundBus = channel == null ? null : channel.get(Channel.ChannelField.BUS);
+        String boundBus = channel == null ? null : (String) channel.get(ChannelFields.BUS()).getOrElse(null);
         if ( channel == null || ! StringUtils.equals(bus, boundBus)) {
             throw new InvalidRequestException("Invalid bus - channel binding ", HttpServletResponse.SC_FORBIDDEN);
         }
 
         // check to see if channel is already full
-        if (daoFactory.getBackplaneMessageDAO().getMessageCount(channelId) >= bpConfig.getDefaultMaxMessageLimit()) {
-            throw new InvalidRequestException("Message limit of " + bpConfig.getDefaultMaxMessageLimit() + " has been reached for channel '" + channel + "'",
+        if (BP2DAOs.messageDao().messageCount(channelId) >= BackplaneConfig.getDefaultMaxMessageLimit()) {
+            throw new InvalidRequestException("Message limit of " + BackplaneConfig.getDefaultMaxMessageLimit() + " has been reached for channel '" + channel + "'",
                     HttpServletResponse.SC_FORBIDDEN);
         }
 
-        BackplaneMessage message;
         try {
-            message = new BackplaneMessage(
-                    token.get(Token.TokenField.CLIENT_SOURCE_URL),
-                    Integer.parseInt(channel.get(Channel.ChannelField.MESSAGE_EXPIRE_DEFAULT_SECONDS)),
-                    Integer.parseInt(channel.get(Channel.ChannelField.MESSAGE_EXPIRE_MAX_SECONDS)),
+            Backplane2Message message = new Backplane2Message(
+                    (String)token.get(TokenFields.CLIENT_SOURCE_URL()).getOrElse(null),
+                    Integer.parseInt( (String) channel.get(ChannelFields.MESSAGE_EXPIRE_DEFAULT_SECONDS()).getOrElse(null)),
+                    Integer.parseInt( (String) channel.get(ChannelFields.MESSAGE_EXPIRE_MAX_SECONDS()).getOrElse(null)),
                     msg);
+            if ( ! token.scope().isMessageInScope(message) ) {
+                throw new InvalidRequestException("Invalid bus in message", HttpServletResponse.SC_FORBIDDEN);
+            }
+            return  message;
         } catch (Exception e) {
             throw new InvalidRequestException("Invalid message data: " + e.getMessage(), HttpServletResponse.SC_BAD_REQUEST);
         }
-        if ( ! token.getScope().isMessageInScope(message) ) {
-            throw new InvalidRequestException("Invalid bus in message", HttpServletResponse.SC_FORBIDDEN);
-        }
-        return  message;
     }
 
-    private Channel getChannel(String channelId) throws BackplaneServerException {
-        Channel channel = daoFactory.getChannelDao().get(channelId);
-        if (channel == null) {
-            // legacy channel-bus binding support
-            // todo: remove after all old channels have expired
-            BusConfig2 busConfig = daoFactory.getBusDao().get(Redis.getInstance().get("v2_channel_bus_" + channelId));
-            if (busConfig != null) {
-                try {
-                    channel = new Channel(channelId, busConfig, 0);
-                } catch (SimpleDBException e) {
-                    // shouldn't happen
-                    throw new BackplaneServerException("", e);
-                }
-            }
-        }
-        return channel;
+    private Channel getChannel(String channelId) throws BackplaneServerException, DaoException {
+        Option<Channel> channel = BP2DAOs.channelDao().get(channelId);
+        return channel.getOrElse(null);
     }
 
     private void aniLogNewChannel(HttpServletRequest request, String referer, String bus, String scope) {
@@ -921,7 +890,7 @@ public class Backplane2Controller {
         aniLog("new_channel", aniEvent);
     }
 
-    private void aniLogPollMessages(HttpServletRequest request, String referer, List<BackplaneMessage> messages) {
+    private void aniLogPollMessages(HttpServletRequest request, String referer, List<Backplane2Message> messages) {
         if (!anilogger.isEnabled()) {
             return;
         }
@@ -931,11 +900,11 @@ public class Backplane2Controller {
         Map<String,Object> aniEvent = new HashMap<String,Object>();
 
         List<Map<String,String>> messagesMeta = new ArrayList<Map<String,String>>();
-        for (BackplaneMessage message : messages) {
-            String bus = message.getBus();
-            String channelId = "https://" + serverName + "/v2/bus/" + bus + "/channel/" + message.getChannel();
+        for (Backplane2Message message : messages) {
+            String bus = message.bus();
+            String channelId = "https://" + serverName + "/v2/bus/" + bus + "/channel/" + message.channel();
             Map<String,String> anotherMeta = new HashMap<String,String>();
-            anotherMeta.put("id", message.getIdValue());
+            anotherMeta.put("id", message.id());
             anotherMeta.put("bus", bus);
             anotherMeta.put("channel_id", channelId);
             messagesMeta.add(anotherMeta);
@@ -946,31 +915,31 @@ public class Backplane2Controller {
         aniLog("poll_messages", aniEvent);
     }
 
-    private void aniLogGetMessage(HttpServletRequest request, BackplaneMessage message, Token token) {
+    private void aniLogGetMessage(HttpServletRequest request, Backplane2Message message, Token token) {
         if (!anilogger.isEnabled()) {
             return;
         }
 
-        String bus = message.getBus();
-        String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + message.getChannel();
+        String bus = message.bus();
+        String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + message.channel();
         Map<String,Object> aniEvent = new HashMap<String,Object>();
-        aniEvent.put("message_id", message.getIdValue());
+        aniEvent.put("message_id", message.id());
         aniEvent.put("bus", bus);
         aniEvent.put("channel_id", channelId);
-        aniEvent.put("client_id", token.get(Token.TokenField.ISSUED_TO_CLIENT_ID));
+        aniEvent.put("client_id", token.get(TokenFields.ISSUED_TO_CLIENT()));
 
         aniLog("get_message", aniEvent);
     }
 
-    private void aniLogNewMessage(HttpServletRequest request, BackplaneMessage message, Token token) {
+    private void aniLogNewMessage(HttpServletRequest request, Backplane2Message message, Token token) {
         if (!anilogger.isEnabled()) {
             return;
         }
 
-        String bus = message.getBus();
-        String channel = message.getChannel();
+        String bus = message.bus();
+        String channel = message.channel();
         String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + channel;
-        String clientId = token.get(Token.TokenField.ISSUED_TO_CLIENT_ID);
+        String clientId = (String) token.get(TokenFields.ISSUED_TO_CLIENT()).getOrElse(null);
         Map<String,Object> aniEvent = new HashMap<String,Object>();
         aniEvent.put("channel_id", channelId);
         aniEvent.put("bus", bus);
@@ -988,7 +957,7 @@ public class Backplane2Controller {
             anilogger.log(eventName, mapper.writeValueAsString(eventData));
         } catch (Exception e) {
             String errMsg = "Error sending analytics event: " + e.getMessage();
-            logger.error(errMsg, bpConfig.getDebugException(e));
+            logger.error(errMsg, BackplaneConfig.getDebugException(e));
         }
     }
 

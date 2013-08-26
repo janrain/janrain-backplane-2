@@ -16,8 +16,7 @@
 
 package com.janrain.servlet;
 
-import com.janrain.utils.BackplaneSystemProps;
-import com.janrain.backplane2.server.InvalidRequestException;
+import com.janrain.backplane.config.SystemProperties;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -39,7 +38,7 @@ public class IPRangeFilter implements Filter {
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {
-        String ipWhiteList = System.getProperty(BackplaneSystemProps.IP_WHITE_LIST);
+        String ipWhiteList = System.getProperty(SystemProperties.IP_WHITE_LIST());
         if (StringUtils.isNotBlank(ipWhiteList)) {
             List<String> items = Arrays.asList(ipWhiteList.split("\\s*,\\s*"));
             ArrayList<Pattern> patternArrayList = new ArrayList<Pattern>();

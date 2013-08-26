@@ -16,6 +16,7 @@
 
 package com.janrain.backplane.server;
 
+import com.janrain.backplane.common.BackplaneServerException;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.commons.supersimpledb.message.MessageField;
 import org.apache.commons.lang.StringUtils;
@@ -43,6 +44,13 @@ public class BusConfig1 extends ExternalizableCore {
         } catch (SimpleDBException e) {
             throw new BackplaneServerException(e.getMessage(), e);
         }
+    }
+
+    /**
+     * Copy constructor (to help with migration).
+     */
+    public BusConfig1(Map<String,String> data) throws SimpleDBException {
+        super.init(data.get(Field.BUS_NAME.getFieldName()), data);
     }
 
     public enum BUS_PERMISSION { GETALL, POST, GETPAYLOAD, IDENTITY }

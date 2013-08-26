@@ -1,7 +1,7 @@
 package com.janrain.backplane2.server.dao.redis;
 
 import com.janrain.backplane2.server.BackplaneMessage;
-import com.janrain.backplane2.server.BackplaneServerException;
+import com.janrain.backplane.common.BackplaneServerException;
 import com.janrain.backplane2.server.Grant;
 import com.janrain.backplane2.server.Scope;
 import com.janrain.backplane2.server.dao.GrantDAO;
@@ -116,7 +116,7 @@ public class RedisGrantDAO implements GrantDAO {
     }
 
     @Override
-    public void delete(String id) throws BackplaneServerException, TokenException {
+    public void delete(String id) throws BackplaneServerException {
         Jedis jedis = null;
         try {
             jedis = Redis.getInstance().getWriteJedis();

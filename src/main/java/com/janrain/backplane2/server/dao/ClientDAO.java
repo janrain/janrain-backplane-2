@@ -16,12 +16,13 @@
 
 package com.janrain.backplane2.server.dao;
 
+import com.janrain.backplane.dao.DAOLegacy;
 import com.janrain.backplane2.server.config.Client;
 
 
 /**
  * @author Tom Raney
  */
-public interface ClientDAO extends DAO<Client> {
+public interface ClientDAO extends DAOLegacy<Client> {
 
 }
