@@ -1,5 +1,6 @@
 package com.janrain.servlet;
 
+import com.janrain.backplane.server.InvalidRequestException;
 import org.apache.log4j.Logger;
 
 import javax.servlet.*;
