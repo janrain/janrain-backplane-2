@@ -171,8 +171,8 @@ public class RedisBackplaneMessageDAO implements BackplaneMessageDAO {
                 }
             }
         } catch (Exception e) {
-            logger.error(e);
-            throw new BackplaneServerException(e.getMessage());
+            logger.error(e.getMessage(), e);
+            throw new BackplaneServerException(e.getMessage(), e);
         } finally {
             Redis.getInstance().releaseToPool(jedis);
         }
