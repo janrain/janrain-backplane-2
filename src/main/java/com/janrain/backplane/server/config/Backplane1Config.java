@@ -165,7 +165,8 @@ public class Backplane1Config {
             }
             CuratorFramework client = CuratorFrameworkFactory.newClient(zkServerConfig, new ExponentialBackoffRetry(50, 20));
             client.start();
-            LeaderSelector leaderSelector = new LeaderSelector(client, "/v1_worker", new MessageProcessor());
+            String leaderPath = "/v1_worker_" + getInstanceId();
+            LeaderSelector leaderSelector = new LeaderSelector(client, leaderPath, new MessageProcessor());
             leaderSelector.autoRequeue();
             leaderSelector.start();
         } catch (Exception e) {

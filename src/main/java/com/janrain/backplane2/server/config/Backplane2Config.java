@@ -205,7 +205,8 @@ public class Backplane2Config {
             }
             CuratorFramework client = CuratorFrameworkFactory.newClient(zkServerConfig, new ExponentialBackoffRetry(50, 20));
             client.start();
-            LeaderSelector leaderSelector = new LeaderSelector(client, "/v2_worker", new V2MessageProcessor(this, daoFactory));
+            String leaderPath = "/v2_worker_" + getInstanceId();
+            LeaderSelector leaderSelector = new LeaderSelector(client, leaderPath, new V2MessageProcessor(this, daoFactory));
             leaderSelector.autoRequeue();
             leaderSelector.start();
             com.janrain.redis.Redis.getInstance().setActiveRedisInstance(client);
