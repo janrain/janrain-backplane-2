@@ -18,6 +18,7 @@ package com.janrain.oauth2;
 
 import com.janrain.backplane.server2.oauth2.model.AuthorizationRequest;
 import com.janrain.backplane.server2.oauth2.model.AuthorizationRequestFields;
+import com.janrain.util.Utils;
 import org.jetbrains.annotations.Nullable;
 import scala.Option;
 
@@ -44,7 +45,7 @@ public class AuthorizationException extends OAuth2Exception {
 
     public AuthorizationException(String oauthErrorCode, String message, AuthorizationRequest request, @Nullable Throwable cause) {
         super(oauthErrorCode, message, cause);
-        this.redirectUri = request.get(AuthorizationRequestFields.REDIRECT_URI().name()).getOrElse(null);
+        this.redirectUri = Utils.getOrNull(request.get(AuthorizationRequestFields.REDIRECT_URI().name()));
         Option<String> stateOption = request.get(AuthorizationRequestFields.STATE().name());
         this.state = stateOption.isDefined() ? stateOption.get() : null;
     }

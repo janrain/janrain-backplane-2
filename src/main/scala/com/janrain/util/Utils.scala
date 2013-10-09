@@ -43,6 +43,8 @@ object Utils {
     case _ => throw new RuntimeException("Required environment configuration missing: " + envName)
   }
 
+  def getOrNull[T](option: Option[T]): T =  option.getOrElse(null.asInstanceOf[T])
+
   /*
     final val ISO8601: ThreadLocal[DateFormat] = new ThreadLocal[DateFormat] {
       protected override def initialValue: DateFormat = new SimpleDateFormat(("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")) {

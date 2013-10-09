@@ -29,6 +29,7 @@ import com.janrain.backplane.server2.oauth2.model.*;
 import com.janrain.oauth2.*;
 import com.janrain.servlet.InvalidRequestException;
 import com.janrain.util.RandomUtils;
+import com.janrain.util.Utils;
 import org.apache.catalina.util.Base64;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -1495,11 +1496,12 @@ public class Backplane2ControllerTest {
             String tokenId = (String) returnedBody.get(OAUTH2_ACCESS_TOKEN_PARAM_NAME);
             assertNotNull(tokenId);
 
-            Grant2 grant = BP2DAOs.grantDao().get(code).getOrElse(null);
-            com.janrain.backplane.server2.oauth2.model.Token token = BP2DAOs.tokenDao().get(tokenId).getOrElse(null);
+            Grant2 grant = Utils.getOrNull(BP2DAOs.grantDao().get(code));
+            com.janrain.backplane.server2.oauth2.model.Token token = Utils.getOrNull(BP2DAOs.tokenDao().get(tokenId));
 
-            assertTrue(grant.get(GrantFields.ISSUED_TO_CLIENT()).getOrElse(null).equals(token.get(TokenFields.ISSUED_TO_CLIENT()).getOrElse(null)));
-            assertTrue(grant.get(GrantFields.ISSUED_BY_USER()).getOrElse(null).equals(busOwner.id()));
+            assertTrue(Utils.getOrNull(grant.get(GrantFields.ISSUED_TO_CLIENT()))
+               .equals(Utils.getOrNull(token.get(TokenFields.ISSUED_TO_CLIENT()))));
+            assertTrue(Utils.getOrNull(grant.get(GrantFields.ISSUED_BY_USER())).equals(busOwner.id()));
 
 
         } finally {
@@ -1537,7 +1539,7 @@ public class Backplane2ControllerTest {
         }
 
         // use #0 to set the 'since' from server time, don't count #0
-        String since = messages.iterator().next().get(Backplane2MessageFields.ID()).getOrElse(null);
+        String since = Utils.getOrNull(messages.iterator().next().get(Backplane2MessageFields.ID()));
 
         // reverse the list
         //Collections.reverse(messages);

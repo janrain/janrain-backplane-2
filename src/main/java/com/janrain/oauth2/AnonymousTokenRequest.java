@@ -9,6 +9,7 @@ import com.janrain.backplane2.server.GrantType;
 import com.janrain.backplane2.server.Scope;
 import com.janrain.backplane2.server.TokenBuilder;
 import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.util.Utils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import scala.Option;
@@ -62,7 +63,7 @@ public class AnonymousTokenRequest implements TokenRequest {
 
         try {
             if (StringUtils.isNotEmpty(bus)) {
-                this.busConfig = BP2DAOs.busDao().get(bus).getOrElse(null);
+                this.busConfig = Utils.getOrNull(BP2DAOs.busDao().get(bus));
                 if ( this.busConfig == null) {
                     throw new TokenException("Invalid bus: " + bus);
                 }
@@ -84,7 +85,7 @@ public class AnonymousTokenRequest implements TokenRequest {
         Date expires = new Date(System.currentTimeMillis() + expiresIn.longValue() * 1000);
         try {
             Channel channel = createOrRefreshChannel(10 * expiresIn);
-            Scope processedScope = processScope(channel.id(), (String) channel.get(ChannelFields.BUS()).getOrElse(null));
+            Scope processedScope = processScope(channel.id(), Utils.getOrNull(channel.get(ChannelFields.BUS())));
             accessToken = new TokenBuilder(grantType.getAccessType(), processedScope.toString()).expires(expires).buildToken();
             BP2DAOs.tokenDao().store(accessToken);
             return accessToken.response(generateRefreshToken(grantType.getRefreshType(), processedScope));
@@ -130,7 +131,7 @@ public class AnonymousTokenRequest implements TokenRequest {
                     buses == null || buses.isEmpty() || buses.size() > 1 ) {
                 throw new TokenException("invalid anonymous refresh token: " + refreshToken.id());
             } else {
-                config = BP2DAOs.busDao().get(buses.iterator().next()).getOrElse(null);
+                config = Utils.getOrNull(BP2DAOs.busDao().get(buses.iterator().next()));
                 channelId = channels.iterator().next();
             }
         } else {

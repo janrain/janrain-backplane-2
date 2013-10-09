@@ -27,6 +27,7 @@ import com.janrain.backplane.server1.model.BusConfig1Fields;
 import com.janrain.backplane.server1.model.BusUser;
 import com.janrain.backplane.server1.model.BusUserFields;
 import com.janrain.commons.supersimpledb.SimpleDBException;
+import com.janrain.util.Utils;
 import org.apache.log4j.Logger;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -175,7 +176,7 @@ public class ProvisioningController {
             T config = null;
             Exception thrown = null;
             try {
-                config = (T) getDaoByObjectType(entityType).get(entityName).getOrElse(null);
+                config = (T) Utils.getOrNull(getDaoByObjectType(entityType).get(entityName));
             } catch (Exception e) {
                 thrown = e;
             }

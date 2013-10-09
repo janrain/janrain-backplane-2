@@ -31,6 +31,7 @@ import com.janrain.backplane.server1.model.BusUserFields;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.util.RandomUtils;
 import com.janrain.util.ServletUtil;
+import com.janrain.util.Utils;
 import com.janrain.utils.AnalyticsLogger;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Histogram;
@@ -167,7 +168,7 @@ public class Backplane1Controller {
                 throw new BackplaneServerException("Message limit exceeded for this channel");
             }
 
-            BusConfig1 busConfig = BP1DAOs.busDao().get(bus).getOrElse(null);
+            BusConfig1 busConfig = Utils.getOrNull(BP1DAOs.busDao().get(bus));
 
             // For analytics.
             String channelId = "https://" + request.getServerName() + "/" + version + "/bus/" + bus + "/channel/" + channel;
@@ -272,7 +273,7 @@ public class Backplane1Controller {
         String user = userPass.substring(0, delim);
         String pass = userPass.substring(delim + 1);
 
-        BusUser userEntry = BP1DAOs.userDao().get(user).getOrElse(null);
+        BusUser userEntry = Utils.getOrNull(BP1DAOs.userDao().get(user));
 
         if (userEntry == null) {
             authError("User not found: " + user);
@@ -281,7 +282,7 @@ public class Backplane1Controller {
         }
 
         // authZ
-        BusConfig1 busConfig = BP1DAOs.busDao().get(bus).getOrElse(null);
+        BusConfig1 busConfig = Utils.getOrNull(BP1DAOs.busDao().get(bus));
 
         if (busConfig == null) {
             authError("Bus configuration not found for " + bus);
