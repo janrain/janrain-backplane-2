@@ -940,7 +940,7 @@ public class Backplane2Controller {
         String bus = message.bus();
         String channel = message.channel();
         String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + channel;
-        String clientId = Utils.<String>getOrNull(token.get(TokenFields.ISSUED_TO_CLIENT()));
+        String clientId = Utils.getOrNull(token.get(TokenFields.ISSUED_TO_CLIENT()));
         Map<String,Object> aniEvent = new HashMap<String,Object>();
         aniEvent.put("channel_id", channelId);
         aniEvent.put("bus", bus);
