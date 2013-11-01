@@ -22,6 +22,19 @@ initialize ~= { _ =>
 
 webSettings
 
+seq(jsSettings : _*)
+
+(compile in Compile) <<= compile in Compile dependsOn (JsKeys.js in Compile)
+
+(JsKeys.compilationLevel in (Compile, JsKeys.js)) := CompilationLevel.SIMPLE_OPTIMIZATIONS
+
+(sourceDirectory in (Compile, JsKeys.js)) <<= (sourceDirectory in Compile)(_ / "javascript")
+
+(resourceManaged in (Compile, JsKeys.js)) <<= (resourceManaged in Compile)(_ / "static")
+
+// add managed resources to the webapp
+(webappResources in Compile) <+= (resourceManaged in Compile)
+
 // A hack to set context path for jetty to "/backplane-server"
 env in Compile := Some(file(".") / "sbt-jetty-env.xml" asFile)
 
