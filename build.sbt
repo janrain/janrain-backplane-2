@@ -56,14 +56,15 @@ libraryDependencies ++= Seq(
     .exclude("commons-logging", "commons-logging"),
   "org.springframework" % "spring-webmvc" % "3.0.6.RELEASE",
   // Logging
-  "org.slf4j" % "slf4j-api" % "1.5.10" force(),
-  "org.slf4j" % "slf4j-log4j12" % "1.5.10" % "runtime" force(),
+  "org.slf4j" % "slf4j-api" % "1.5.10",
+  "org.slf4j" % "slf4j-log4j12" % "1.5.10" % "runtime",
   "org.slf4j" % "jcl-over-slf4j" % "1.5.10" % "runtime",
   "log4j" % "log4j" % "1.2.16",
   "avalon-framework" % "avalon-framework" % "4.1.3",
   // JSR 303 with Hibernate Validator
   "javax.validation" % "validation-api" % "1.0.0.GA",
   ("org.hibernate" % "hibernate-validator" % "4.0.2.GA")
+//    .exclude("com.sun.xml.bind", "jaxb-impl")
     .exclude("org.slf4j", "slf4j-api"),
   // URL Rewrite
   "org.tuckey" % "urlrewritefilter" % "3.1.0",
@@ -85,29 +86,66 @@ libraryDependencies ++= Seq(
   "org.springframework" % "spring-test" % "2.5.6" % "test",
   "org.apache.tomcat" % "catalina" % "6.0.18" % "test",
   "org.apache.xbean" % "xbean-spring" % "3.7",
-  "com.amazonaws" % "aws-java-sdk" % "1.2.9",
+  ("org.apache.velocity" % "velocity" % "1.7")
+    .exclude("commons-collections","commons-collections"),
+  ("com.amazonaws" % "aws-java-sdk" % "1.2.9")
+    .exclude("org.codehaus.jackson", "jackson-core-asl")
+    .exclude("org.codehaus.jackson", "jackson-mapper-asl"),
   // metrics
-  "com.yammer.metrics" % "metrics-core" % "2.1.2",
-  "com.yammer.metrics" % "metrics-servlet" % "2.1.2",
-  "com.yammer.metrics" % "metrics-log4j" % "2.1.2",
-  "com.yammer.metrics" % "metrics-graphite" % "2.1.2",
+  ("com.yammer.metrics" % "metrics-core" % "2.1.2")
+    .exclude("org.slf4j", "slf4j-api"),
+  ("com.yammer.metrics" % "metrics-servlet" % "2.1.2")
+    .exclude("org.slf4j", "slf4j-api")
+    .exclude("org.codehaus.jackson", "jackson-core-asl")
+    .exclude("org.codehaus.jackson", "jackson-mapper-asl"),
+  ("com.yammer.metrics" % "metrics-log4j" % "2.1.2")
+    .exclude("org.slf4j", "slf4j-api"),
+  ("com.yammer.metrics" % "metrics-graphite" % "2.1.2")
+    .exclude("org.slf4j", "slf4j-api"),
   // legacy serialization / supersimpledb
-  "com.janrain.commons.supersimpledb" % "commons-supersimpledb" % "1.0.27",
+  ("com.janrain.commons.supersimpledb" % "commons-supersimpledb" % "1.0.27")
+    .exclude("org.codehaus.jackson", "jackson-core-asl")
+    .exclude("org.codehaus.jackson", "jackson-mapper-asl"),
   // intellij annotations library for @NotNull and @Nullable
   "org.kohsuke.jetbrains" % "annotations" % "9.0",
-  "net.sf.ehcache" % "ehcache" % "2.5.2",
+  ("net.sf.ehcache" % "ehcache" % "2.5.2")
+    .exclude("org.slf4j", "slf4j-api"),
   // Redis
-  "net.debasishg" % "redisclient_2.10" % "2.10",
+  ("net.debasishg" % "redisclient_2.10" % "2.10")
+    .exclude("org.slf4j", "slf4j-api"),
   "redis.clients" % "jedis" % "2.1.0.a",
-  "com.netflix.curator" % "curator-recipes" % "1.1.15",
+  ("com.netflix.curator" % "curator-recipes" % "1.1.15")
+    .exclude("org.slf4j", "slf4j-api")
+    .exclude("org.slf4j", "slf4j-log4j12"),
   // Analytics (flume, akka, scalax, etc.)
   "com.github.scala-incubator.io" % "scala-io-file_2.10" % "0.4.2",
   "com.typesafe.akka" % "akka-actor_2.10" % "2.1.1",
-  "com.cloudera" % "flume-log4j-appender" % "0.9.4-cdh3u3" intransitive(),
-  "com.cloudera" % "flume-core" % "0.9.4-cdh3u3" intransitive(),
-  ("org.apache.avro" % "avro-ipc" % "1.5.4")
+  ("com.cloudera" % "flume-log4j-appender" % "0.9.4-cdh3u3")
+    .exclude("javax.servlet.jsp", "jsp-api")
+    .exclude("javax.servlet", "servlet-api")
+    .exclude("org.mortbay.jetty", "servlet-api")
+    .exclude("org.slf4j", "slf4j-api")
+    .exclude("org.slf4j", "slf4j-log4j12")
+    .exclude("org.codehaus.jackson", "jackson-core-asl")
     .exclude("org.codehaus.jackson", "jackson-mapper-asl")
-    .exclude("commons-collections", "commons-collections")
+    .exclude("antlr", "antlr")
+    .exclude("com.sun.xml.bind", "jaxb-impl"),
+  ("com.cloudera" % "flume-core" % "0.9.4-cdh3u3")
+    .exclude("javax.servlet.jsp", "jsp-api")
+    .exclude("javax.servlet", "servlet-api")
+    .exclude("org.mortbay.jetty", "servlet-api")
+    .exclude("org.slf4j", "slf4j-api")
+    .exclude("org.slf4j", "slf4j-log4j12")
+    .exclude("org.codehaus.jackson", "jackson-core-asl")
+    .exclude("org.codehaus.jackson", "jackson-mapper-asl")
+    .exclude("antlr", "antlr")
+    .exclude("com.sun.xml.bind", "jaxb-impl"),
+  ("org.apache.avro" % "avro-ipc" % "1.5.4")
+    .exclude("org.mortbay.jetty", "servlet-api")
+    .exclude("org.slf4j", "slf4j-api")
+    .exclude("org.codehaus.jackson", "jackson-core-asl")
+    .exclude("org.codehaus.jackson", "jackson-mapper-asl")
+    .exclude("commons-collections","commons-collections")
     .exclude("org.mortbay.jetty", "servlet-api"),
   // For sbt web plugin
   "org.eclipse.jetty" % "jetty-server" % "7.2.2.v20101205" % "container",
