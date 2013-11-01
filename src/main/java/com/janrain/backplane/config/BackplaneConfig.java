@@ -16,6 +16,7 @@
 
 package com.janrain.backplane.config;
 
+import com.janrain.backplane.BuildInfo;
 import com.janrain.backplane.config.dao.ConfigDAOs;
 import com.janrain.backplane.config.model.ServerConfigFields;
 import com.janrain.backplane.dao.redis.RedisMessageProcessor;
@@ -43,7 +44,6 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -59,6 +59,8 @@ import java.util.concurrent.TimeUnit;
 public class BackplaneConfig {
 
     // - PUBLIC
+
+    public static String buildVersion = BuildInfo.name() + "-" + BuildInfo.version();
 
     /**
 	 * @return the debugMode
@@ -97,17 +99,10 @@ public class BackplaneConfig {
         backgroundServices.put(workerName, messageWorkerTask);
     }
 
-    public String getBuildVersion() {
-        return buildProperties.getProperty(BUILD_VERSION_PROPERTY);
-    }
-
     // - PRIVATE
 
     private static final Logger logger = Logger.getLogger(BackplaneConfig.class);
 
-    private static final String BUILD_PROPERTIES = "/build.properties";
-    private static final String BUILD_VERSION_PROPERTY = "build.version";
-    private static final Properties buildProperties = new Properties();
     private static final long BP_MAX_MESSAGES_DEFAULT = 100;
 
     private static final Map<String, ExecutorService> backgroundServices = new HashMap<String, ExecutorService>();
@@ -131,14 +126,6 @@ public class BackplaneConfig {
             } catch (Exception e) {
                 logger.warn("could not enable Graphite from " + graphiteServer + " must be in the form SERVER:PORT");
             }
-        }
-        try {
-            buildProperties.load(BackplaneConfig.class.getResourceAsStream(BUILD_PROPERTIES));
-            //assert(StringUtils.isNotBlank(getEncryptionKey()));
-        } catch (Exception e) {
-            String err = "Error loading build properties from " + BUILD_PROPERTIES;
-            logger.error(err, e);
-            throw new RuntimeException(err, e);
         }
 
         logger.info("Configured Backplane Server instance: " + SystemProperties.INSTANCE_ID());

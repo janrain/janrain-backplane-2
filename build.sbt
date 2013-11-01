@@ -45,6 +45,10 @@ seq(jsSettings : _*)
 // add managed resources to the webapp
 (webappResources in Compile) <+= (resourceManaged in Compile)
 
+artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+  name.value + "-" + buildVersion + "." + artifact.extension
+}
+
 // A hack to set context path for jetty to "/backplane-server"
 env in Compile := Some(file(".") / "sbt-jetty-env.xml" asFile)
 
