@@ -1,8 +1,8 @@
 organization := "com.janrain"
 
-name := "backplane-server"
+name := "BP"
 
-version := "2.0"
+version := "2"
 
 scalaVersion := "2.10.2"
 
@@ -46,7 +46,7 @@ seq(jsSettings : _*)
 (webappResources in Compile) <+= (resourceManaged in Compile)
 
 artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
-  name.value + "-" + buildVersion + "." + artifact.extension
+  name.value + version.value + "-" + buildVersion + "." + artifact.extension
 }
 
 // A hack to set context path for jetty to "/backplane-server"
