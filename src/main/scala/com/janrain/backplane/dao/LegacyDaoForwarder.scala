@@ -47,7 +47,7 @@ trait LegacyDaoForwarder[LT <: NamedMap, T <: Message[_] with LegacySupport[LT]]
 
   abstract override def getAll: List[T] = {
     val newItems = super.getAll
-    val legacyItems = legacyDao.getAll.map(legacyItem => instantiate(LegacySupport.fromLegacy(legacyItem))).toList
+    val legacyItems = legacyDao.getAll.map(legacyItem => instantiateFromLegacy(legacyItem)).toList
     val itemsToConvert = legacyItems.filterNot(newItems.contains)
     if(! itemsToConvert.isEmpty) {
       store(itemsToConvert: _*)
