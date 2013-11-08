@@ -9,6 +9,7 @@ import com.janrain.backplane2.server.GrantType;
 import com.janrain.backplane2.server.Scope;
 import com.janrain.backplane2.server.TokenBuilder;
 import com.janrain.commons.util.Pair;
+import com.janrain.util.Utils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import scala.Option;
@@ -34,7 +35,7 @@ public class AuthenticatedTokenRequest implements TokenRequest {
                                      HttpServletRequest request) throws TokenException, DaoException {
 
         this.authenticatedClientId = authenticatedClient.id();
-        this.authenticatedClientSourceUrl = authenticatedClient.get(ClientFields.SOURCE_URL()).getOrElse(null);
+        this.authenticatedClientSourceUrl = Utils.getOrNull(authenticatedClient.get(ClientFields.SOURCE_URL()));
         try {
             // this must be done as early as possible in order to invalidate misused codes/grants, before any other failures
             if (StringUtils.isNotEmpty(code)) {
@@ -72,7 +73,7 @@ public class AuthenticatedTokenRequest implements TokenRequest {
             throw new TokenException("redirect_uri is required if and only if grant_type is authorization_code");
         }
         try {
-            OAuth2.validateRedirectUri(redirectUri, (String) authenticatedClient.get(ClientFields.REDIRECT_URI()).getOrElse(null));
+            OAuth2.validateRedirectUri(redirectUri, Utils.getOrNull(authenticatedClient.get(ClientFields.REDIRECT_URI())));
         } catch (ValidationException e) {
             throw new TokenException(e.getCode(), "Invalid redirect_uri: " + redirectUri);
         }

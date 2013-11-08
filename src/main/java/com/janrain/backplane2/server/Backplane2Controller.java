@@ -33,6 +33,7 @@ import com.janrain.oauth2.*;
 import com.janrain.servlet.InvalidRequestException;
 import com.janrain.util.RandomUtils;
 import com.janrain.util.ServletUtil;
+import com.janrain.util.Utils;
 import com.janrain.utils.AnalyticsLogger;
 import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.core.TimerContext;
@@ -374,7 +375,7 @@ public class Backplane2Controller {
                 throw new TokenException("Invalid token type: " + token.get().grantType(), HttpServletResponse.SC_FORBIDDEN);
             }
 
-            Backplane2Message message = BP2DAOs.messageDao().get(msg_id).getOrElse(null);
+            Backplane2Message message = Utils.getOrNull(BP2DAOs.messageDao().get(msg_id));
 
             if (message != null) {
                 if (! token.get().scope().isMessageInScope(message)) {
@@ -578,7 +579,7 @@ public class Backplane2Controller {
     private String getAuthenticatedBusOwner(HttpServletRequest request, String authSessionCookie) throws DaoException {
         if (authSessionCookie == null) return null;
         try {
-            AuthSession authSession = com.janrain.backplane.server2.dao.BP2DAOs.authSessionDao().get(authSessionCookie).getOrElse(null);
+            AuthSession authSession = Utils.getOrNull(com.janrain.backplane.server2.dao.BP2DAOs.authSessionDao().get(authSessionCookie));
             if (authSession == null) {
                 return null;
             } else {
@@ -660,7 +661,7 @@ public class Backplane2Controller {
             com.janrain.backplane.server2.dao.BP2DAOs.authorizationDecisionKeyDao().store(authorizationDecisionKey);
 
             model.put("auth_key", authorizationDecisionKey.get(AuthorizationDecisionKeyFields.KEY()).get());
-            model.put(AuthorizationRequestFields.CLIENT_ID().name().toLowerCase(), (String) authzRequest.get(AuthorizationRequestFields.CLIENT_ID().name()).getOrElse(null));
+            model.put(AuthorizationRequestFields.CLIENT_ID().name().toLowerCase(), Utils.getOrNull(authzRequest.get(AuthorizationRequestFields.CLIENT_ID().name())));
             model.put(AuthorizationRequestFields.REDIRECT_URI().name().toLowerCase(), authzRequest.getRedirectUri());
 
             Option<String> scopeOption = authzRequest.get(AuthorizationRequestFields.SCOPE().name());
@@ -724,8 +725,8 @@ public class Backplane2Controller {
             authorizationRequest = com.janrain.backplane.server2.dao.BP2DAOs.authorizationRequestDao().get(authorizationRequestCookie).get();
 
             // check authZdecisionKey
-            AuthorizationDecisionKey authZdecisionKeyEntry = com.janrain.backplane.server2.dao.BP2DAOs.authorizationDecisionKeyDao().get(authZdecisionKey).getOrElse(null);
-            if (null == authZdecisionKeyEntry || ! authSessionCookie.equals(authZdecisionKeyEntry.get(AuthorizationDecisionKeyFields.AUTH_COOKIE()).getOrElse(null))) {
+            AuthorizationDecisionKey authZdecisionKeyEntry = Utils.getOrNull(BP2DAOs.authorizationDecisionKeyDao().get(authZdecisionKey));
+            if (null == authZdecisionKeyEntry || ! authSessionCookie.equals(Utils.getOrNull(authZdecisionKeyEntry.get(AuthorizationDecisionKeyFields.AUTH_COOKIE())))) {
                 throw new AuthorizationException(OAuth2.OAUTH2_AUTHZ_ACCESS_DENIED, "Presented authorization key was issued to a different authenticated bus owner.", authorizationRequest);
             }
 
@@ -764,7 +765,7 @@ public class Backplane2Controller {
                     logger.error(errMsg, ve);
                     return authzRequestError(OAuth2.OAUTH2_AUTHZ_DIRECT_ERROR, errMsg,
                             authorizationRequest.getRedirectUri(),
-                            (String)authorizationRequest.get(AuthorizationRequestFields.STATE()).getOrElse(null));
+                            Utils.getOrNull(authorizationRequest.get(AuthorizationRequestFields.STATE())));
                 }
             }
         } catch (Exception e) {
@@ -841,7 +842,7 @@ public class Backplane2Controller {
         String channelId = msg.get(Backplane2MessageFields.CHANNEL().name()) != null ? msg.get(Backplane2MessageFields.CHANNEL().name()).toString() : null;
         String bus = msg.get(Backplane2MessageFields.BUS().name()) != null ? msg.get(Backplane2MessageFields.BUS().name()).toString() : null;
         Channel channel = getChannel(channelId);
-        String boundBus = channel == null ? null : (String) channel.get(ChannelFields.BUS()).getOrElse(null);
+        String boundBus = channel == null ? null : Utils.getOrNull(channel.get(ChannelFields.BUS()));
         if ( channel == null || ! StringUtils.equals(bus, boundBus)) {
             throw new InvalidRequestException("Invalid bus - channel binding ", HttpServletResponse.SC_FORBIDDEN);
         }
@@ -854,9 +855,9 @@ public class Backplane2Controller {
 
         try {
             Backplane2Message message = new Backplane2Message(
-                    (String)token.get(TokenFields.CLIENT_SOURCE_URL()).getOrElse(null),
-                    Integer.parseInt( (String) channel.get(ChannelFields.MESSAGE_EXPIRE_DEFAULT_SECONDS()).getOrElse(null)),
-                    Integer.parseInt( (String) channel.get(ChannelFields.MESSAGE_EXPIRE_MAX_SECONDS()).getOrElse(null)),
+                    Utils.getOrNull(token.get(TokenFields.CLIENT_SOURCE_URL())),
+                    Integer.parseInt( Utils.getOrNull(channel.get(ChannelFields.MESSAGE_EXPIRE_DEFAULT_SECONDS())) ),
+                    Integer.parseInt( Utils.getOrNull(channel.get(ChannelFields.MESSAGE_EXPIRE_MAX_SECONDS())) ),
                     msg);
             if ( ! token.scope().isMessageInScope(message) ) {
                 throw new InvalidRequestException("Invalid bus in message", HttpServletResponse.SC_FORBIDDEN);
@@ -869,7 +870,7 @@ public class Backplane2Controller {
 
     private Channel getChannel(String channelId) throws BackplaneServerException, DaoException {
         Option<Channel> channel = BP2DAOs.channelDao().get(channelId);
-        return channel.getOrElse(null);
+        return Utils.getOrNull(channel);
     }
 
     private void aniLogNewChannel(HttpServletRequest request, String referer, String bus, String scope) {
@@ -939,7 +940,7 @@ public class Backplane2Controller {
         String bus = message.bus();
         String channel = message.channel();
         String channelId = "https://" + request.getServerName() + "/v2/bus/" + bus + "/channel/" + channel;
-        String clientId = (String) token.get(TokenFields.ISSUED_TO_CLIENT()).getOrElse(null);
+        String clientId = Utils.getOrNull(token.get(TokenFields.ISSUED_TO_CLIENT()));
         Map<String,Object> aniEvent = new HashMap<String,Object>();
         aniEvent.put("channel_id", channelId);
         aniEvent.put("bus", bus);

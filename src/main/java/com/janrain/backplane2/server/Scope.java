@@ -22,6 +22,7 @@ import com.janrain.backplane.server2.model.Backplane2MessageFields;
 import com.janrain.commons.util.Pair;
 import com.janrain.oauth2.OAuth2;
 import com.janrain.oauth2.TokenException;
+import com.janrain.util.Utils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -100,7 +101,7 @@ public class Scope {
     public boolean isMessageInScope(@NotNull Backplane2Message message) {
         for(Backplane2MessageFields.EnumVal scopeField : scopes.keySet()) {
             LinkedHashSet<String> scopeValues = scopes.get(scopeField);
-            if (scopeValues == null || ! scopeValues.contains((String)message.get(scopeField).getOrElse(null))) return false;
+            if (scopeValues == null || ! scopeValues.contains(Utils.getOrNull(message.get(scopeField)))) return false;
         }
         return true;
     }
@@ -339,7 +340,7 @@ public class Scope {
         } catch (MessageException e) {
             throw new TokenException(OAuth2.OAUTH2_TOKEN_INVALID_SCOPE, "invalid scope value in token: " + token);
         }
-        if (StringUtils.isBlank((String)value.getOrElse(null))) {
+        if (StringUtils.isBlank(Utils.getOrNull(value))) {
             throw new TokenException(OAuth2.OAUTH2_TOKEN_INVALID_SCOPE, "invalid scope value in token: " + token);
         }
         

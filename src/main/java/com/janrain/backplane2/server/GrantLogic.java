@@ -10,6 +10,7 @@ import com.janrain.backplane.server2.oauth2.model.Grant2;
 import com.janrain.backplane.server2.oauth2.model.GrantFields;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.oauth2.TokenException;
+import com.janrain.util.Utils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -59,8 +60,10 @@ public class GrantLogic {
             for(Scope authReqScope : scope.getAuthReqScopes()) {
                 final Scope testScope;
                 if (authReqScope.getScopeMap().containsKey(Backplane2MessageFields.CHANNEL())) {
-                    com.janrain.backplane.server2.model.Channel channel = BP2DAOs.channelDao().get(authReqScope.getScopeMap().get(Backplane2MessageFields.CHANNEL()).iterator().next()).getOrElse(null);
-                    String boundBus = channel == null ? null : (String) channel.get(ChannelFields.BUS()).getOrElse(null);
+                    com.janrain.backplane.server2.model.Channel channel = Utils.getOrNull(BP2DAOs.channelDao().get(
+                        authReqScope.getScopeMap().get(Backplane2MessageFields.CHANNEL()).iterator().next()
+                    ));
+                    String boundBus = channel == null ? null : Utils.getOrNull(channel.get(ChannelFields.BUS()));
                     testScope = new Scope(Backplane2MessageFields.BUS(), boundBus);
                 } else {
                     testScope = authReqScope;
@@ -99,7 +102,7 @@ public class GrantLogic {
      */
       public static Grant2 getAndActivateCodeGrant(final String codeId, String authenticatedClientId) throws BackplaneServerException, TokenException, DaoException {
 
-          Grant2 existing = BP2DAOs.grantDao().get(codeId).getOrElse(null);
+          Grant2 existing = Utils.getOrNull(BP2DAOs.grantDao().get(codeId));
 
           GrantState updatedState = GrantState.ACTIVE;
           if ( existing == null) {
@@ -107,7 +110,7 @@ public class GrantLogic {
               throw new TokenException("Invalid code: " + codeId);
           } else if ( GrantType.AUTHORIZATION_CODE != existing.getType() || Message.isExpired(existing.get(GrantFields.TIME_EXPIRE())) ||
                   StringUtils.isBlank(authenticatedClientId) ||
-                  ! authenticatedClientId.equals(existing.get(GrantFields.ISSUED_TO_CLIENT()).getOrElse(null)) ||
+                  ! authenticatedClientId.equals(Utils.getOrNull(existing.get(GrantFields.ISSUED_TO_CLIENT()))) ||
                   GrantState.INACTIVE != existing.getState()) {
               logger.error("Invalid grant for code: " + codeId);
               updatedState = GrantState.REVOKED;

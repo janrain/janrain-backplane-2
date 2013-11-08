@@ -33,6 +33,7 @@ import com.janrain.backplane2.server.*;
 import com.janrain.commons.supersimpledb.SimpleDBException;
 import com.janrain.oauth2.TokenException;
 import com.janrain.util.ServletUtil;
+import com.janrain.util.Utils;
 import org.apache.log4j.Logger;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -265,7 +266,7 @@ public class ProvisioningController2 {
             T config = null;
             Exception thrown = null;
             try {
-                config = (T) getDaoByObjectType(entityType).get(entityName).getOrElse(null);
+                config = (T) Utils.getOrNull( getDaoByObjectType(entityType).get(entityName) );
             } catch (Exception e) {
                 thrown = e;
             }
