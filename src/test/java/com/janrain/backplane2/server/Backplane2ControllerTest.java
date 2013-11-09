@@ -52,10 +52,7 @@ import javax.inject.Inject;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletResponse;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.janrain.oauth2.OAuth2.*;
 import static org.junit.Assert.*;
@@ -1539,13 +1536,14 @@ public class Backplane2ControllerTest {
         }
 
         // use #0 to set the 'since' from server time, don't count #0
-        String since = Utils.getOrNull(messages.iterator().next().get(Backplane2MessageFields.ID()));
+        Iterator<Backplane2Message> msgIter = messages.iterator();
+        String since = Utils.getOrNull(msgIter.next().get(Backplane2MessageFields.ID()));
 
         // reverse the list
         //Collections.reverse(messages);
 
-        for (Backplane2Message message : messages) {
-            this.saveMessage(message);
+        while(msgIter.hasNext()) {
+            this.saveMessage(msgIter.next());
         }
 
         // we assume the message processor is running in another thread...
