@@ -9,16 +9,19 @@ scalaVersion := "2.10.2"
 scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 // XXX: Compile in debug mode, otherwise spring throws exceptions
+// http://www.objectpartners.com/2010/08/12/spring-pathvariable-head-slapper/
 javacOptions += "-g"
 
-//javacOptions += "-Xlint:unchecked"
+javaOptions in Test := Seq(
+  "-DAWS_INSTANCE_ID=bp2local",
+  "-DREDIS_SERVER_PRIMARY=localhost:6379",
+  "-DREDIS_SERVER_READS=localhost:6379",
+  "-DZOOKEEPER_SERVERS=localhost:2181"
+)
 
-initialize ~= { _ =>
-  System.setProperty("AWS_INSTANCE_ID", "bp2local")
-  System.setProperty("REDIS_SERVER_PRIMARY", "localhost:6379")
-  System.setProperty("REDIS_SERVER_READS", "localhost:6379")
-  System.setProperty("ZOOKEEPER_SERVERS", "localhost:2181")
-}
+fork in Test := true
+
+testListeners <+= target map (t => new com.dadrox.sbt.test.reports.Xml(t getName))
 
 webSettings
 
@@ -79,11 +82,12 @@ libraryDependencies ++= Seq(
   "org.codehaus.jackson" % 	"jackson-core-asl" % "1.6.0" force(),
   // Test
   "junit" % "junit" % "4.4" % "test",
+  "com.novocode" % "junit-interface" % "0.10" % "test",
   "org.powermock.modules" % "powermock-module-junit4" % "1.4.5" % "test",
   "org.powermock.api" %	"powermock-api-easymock" % "1.4.5" % "test",
   "org.easymock" % "easymock" % "3.0" % "test",
   "org.springframework" % "spring-mock" % "2.0.8" % "test",
-  "org.springframework" % "spring-test" % "2.5.6" % "test",
+  "org.springframework" % "spring-test" % "3.0.6.RELEASE" % "test",
   "org.apache.tomcat" % "catalina" % "6.0.18" % "test",
   "org.apache.xbean" % "xbean-spring" % "3.7",
   ("org.apache.velocity" % "velocity" % "1.7")

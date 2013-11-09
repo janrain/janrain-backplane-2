@@ -21,7 +21,6 @@ import com.janrain.backplane.server1.model.Backplane1Message;
 import com.janrain.backplane.server1.model.BusConfig1;
 import com.janrain.backplane.server1.model.BusConfig1Fields;
 import com.janrain.backplane.server1.model.BusUser;
-import junit.framework.TestCase;
 import org.apache.catalina.util.Base64;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -40,13 +39,15 @@ import javax.inject.Inject;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.Assert.*;
+
 /**
  * @author Tom Raney
  */
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = { "classpath:/spring/app-config.xml", "classpath:/spring/mvc-config.xml" })
-public class Backplane1ControllerTest extends TestCase {
+public class Backplane1ControllerTest {
 
     private static final Logger logger = Logger.getLogger(Backplane1ControllerTest.class);
 
@@ -94,7 +95,7 @@ public class Backplane1ControllerTest extends TestCase {
         String[] versions = new String[]{"1.1", "1.2", "1.3"};
         for (String version : versions) {
             refreshRequestAndResponse();
-            request.setRequestURI("/" + version + "/bus/test/channel/test");
+            request.setRequestURI("/" + version + "/bus/test/channel/test1");
             request.setMethod("GET");
 
             handlerAdapter.handle(request, response, controller);
@@ -131,7 +132,7 @@ public class Backplane1ControllerTest extends TestCase {
                 String credentials = "testBusOwner:busOwnerSecret";
 
                 Map<String,Object> msg = new ObjectMapper().readValue(TEST_MSG, new TypeReference<Map<String,Object>>() {});
-                message = new Backplane1Message("test", "test", DEFAULT_MESSAGE_RETENTION_SECONDS, MAX_MESSAGE_RETENTION_SECONDS, msg);
+                message = new Backplane1Message("test", "test2", DEFAULT_MESSAGE_RETENTION_SECONDS, MAX_MESSAGE_RETENTION_SECONDS, msg);
                 BP1DAOs.messageDao().store(message);
 
                 Thread.sleep(1000);
@@ -139,7 +140,7 @@ public class Backplane1ControllerTest extends TestCase {
                 String encodedCredentials = new String(Base64.encode(credentials.getBytes()));
                 request.setAuthType("BASIC");
                 request.addHeader("Authorization", "Basic " + encodedCredentials);
-                request.setRequestURI("/" + version + "/bus/test/channel/test");
+                request.setRequestURI("/" + version + "/bus/test/channel/test2");
                 request.setMethod("GET");
 
                 handlerAdapter.handle(request, response, controller);
