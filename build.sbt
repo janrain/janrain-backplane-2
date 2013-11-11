@@ -1,8 +1,8 @@
 organization := "com.janrain"
 
-name := "backplane-server"
+name := "BP"
 
-version := "2.0"
+version := "2"
 
 scalaVersion := "2.10.2"
 
@@ -44,6 +44,10 @@ seq(jsSettings : _*)
 
 // add managed resources to the webapp
 (webappResources in Compile) <+= (resourceManaged in Compile)
+
+artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+  name.value + version.value + "-" + buildVersion + "." + artifact.extension
+}
 
 // A hack to set context path for jetty to "/backplane-server"
 env in Compile := Some(file(".") / "sbt-jetty-env.xml" asFile)

@@ -47,7 +47,7 @@ public class InstanceIdFilter implements Filter {
     @Override
     public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
         HttpServletResponse response = (HttpServletResponse) res;
-        response.addHeader(SSO_ID_HEADER, SystemProperties.INSTANCE_ID() + "-" + bpConfig.getBuildVersion());
+        response.addHeader(SSO_ID_HEADER, SystemProperties.INSTANCE_ID() + "-" + BackplaneConfig.buildVersion);
 
         //add EC2 instance id
         response.addHeader("EC2-instance-id", BackplaneConfig.getEC2InstanceId());
