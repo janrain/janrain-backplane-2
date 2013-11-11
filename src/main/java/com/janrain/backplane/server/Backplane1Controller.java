@@ -82,7 +82,7 @@ public class Backplane1Controller {
             @RequestHeader(value = "Authorization", required = false) String basicAuth,
             @PathVariable String bus,
             @RequestParam(value = "since", defaultValue = "") String since,
-            @RequestParam(value = "sticky", required = false) String sticky )
+            @RequestParam(value = "sticky", defaultValue = "false") String sticky )
             throws AuthException, SimpleDBException, BackplaneServerException, DaoException {
 
         final TimerContext context = getBusMessagesTime.time();

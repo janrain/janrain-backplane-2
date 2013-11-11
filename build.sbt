@@ -12,6 +12,13 @@ scalacOptions ++= Seq("-unchecked", "-deprecation")
 // http://www.objectpartners.com/2010/08/12/spring-pathvariable-head-slapper/
 javacOptions += "-g"
 
+initialize ~= { _ =>
+  System.setProperty("AWS_INSTANCE_ID", "bp2local")
+  System.setProperty("REDIS_SERVER_PRIMARY", "localhost:6379")
+  System.setProperty("REDIS_SERVER_READS", "localhost:6379")
+  System.setProperty("ZOOKEEPER_SERVERS", "localhost:2181")
+}
+
 javaOptions in Test := Seq(
   "-DAWS_INSTANCE_ID=bp2local",
   "-DREDIS_SERVER_PRIMARY=localhost:6379",
