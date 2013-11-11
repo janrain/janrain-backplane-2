@@ -61,22 +61,17 @@ To add the admin user account on initial deployment, use the /admin web interfac
 Building From Source
 --------------------
 
-This project requires the [Maven] [3] build tool.
-
-        mvn package -DskipTests=true
+This project requires the [SBT] [3] build tool.
 
 To process the tests, you must start the Redis and ZooKeeper instances.
+Custom configurations for these can we adjusted in `build.sbt`, in the `initialize` setting key.
 
-Use the following modification to the Maven build command (be sure to add your parameters):
-
-        mvn package -DargLine="AWS_INSTANCE_ID=test -DZOOKEEPER_SERVERS=localhost:2181 -DREDIS_SERVER_PRIMARY=localhost:6379 -DREDIS_SERVER_READS=localhost:6379"
-
-Maven will create a WAR file for deployment in the `/target/` directory.
+SBT will create a WAR file for deployment under the `/target/` directory.
 
 
 [1]: http://sites.google.com/site/backplanespec/documentation/backplane1-2
 [2]: http://sites.google.com/site/backplanespec/documentation/backplane2-0-draft08
-[3]: http://maven.apache.org/guides/getting-started/maven-in-five-minutes.html
+[3]: http://www.scala-sbt.org/
 [4]: http://github.com/janrain/janrain-backplane-2/blob/master/README12.md "Backplane v1.2"
 [5]: http://github.com/janrain/janrain-backplane-2/blob/master/README20.md "Backplane v2.0"
 [6]: http://typica.googlecode.com/files/sdbShell.jar
