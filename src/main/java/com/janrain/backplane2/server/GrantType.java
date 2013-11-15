@@ -41,11 +41,6 @@ public enum GrantType {
         return accessType != this;
     }
 
-    public int getTokenExpiresSecondsDefault() {
-        int seconds = isPrivileged() ? TOKEN_PRIVILEGED_EXPIRES_SECONDS : TOKEN_ANONYMOUS_EXPIRES_SECONDS;
-        return isRefresh() ? 2 * seconds : seconds;
-    }
-
     /**
      * @return the GrantType recognized based on token prefix, or null if not recognized
      */
@@ -63,12 +58,6 @@ public enum GrantType {
     // - PRIVATE
 
     private static final Logger logger = Logger.getLogger(GrantType.class);
-
-    public static final int TOKEN_PRIVILEGED_EXPIRES_SECONDS = 31536000;  // 1 year
-    public static final int TOKEN_PRIVILEGED_TEST_EXPIRES_SECONDS = 600;  // 10 minutes
-
-    public static final int TOKEN_ANONYMOUS_EXPIRES_SECONDS = 604800;     // 1 week
-    public static final int TOKEN_ANONYMOUS_TEST_EXPIRES_SECONDS = 600;   // 10 minutes
 
     private static final int TOKEN_PREFIX_LENGTH = 2;
 

@@ -17,6 +17,8 @@ class AuthSession(data: Map[String,String]) extends Message(data, AuthSessionFie
     ))
 
   def idField = AuthSessionFields.COOKIE
+
+  def expireSeconds = Option.empty[Int] // use dao-default
 }
 
 object AuthSession {
