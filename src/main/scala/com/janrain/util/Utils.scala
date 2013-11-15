@@ -2,16 +2,36 @@ package com.janrain.util
 
 import org.apache.commons.lang.StringUtils
 import org.joda.time.format.DateTimeFormat
-import org.joda.time.DateTimeZone
+import org.joda.time.{DateTime, DateTimeZone}
 
 /**
  * @author Johnny Bufu
  */
-object Utils {
+object Utils extends Loggable {
 
   final val ISO8601 = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(DateTimeZone.UTC)
 
   final val INTERNET_DATE = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(DateTimeZone.UTC)
+
+  object IsoDate {
+    def unapply(dateString: String): Option[DateTime] = {
+      try {
+        Some(ISO8601.parseDateTime(dateString.substring(0, dateString.indexOf("Z") + 1)))
+      } catch {
+        case e: Throwable => None
+      }
+    }
+  }
+
+  object InternetDate {
+    def unapply(dateString: String): Option[DateTime] = {
+      try {
+        Some(INTERNET_DATE.parseDateTime(dateString.substring(0, dateString.indexOf("Z") + 1)))
+      } catch {
+        case e: Throwable => None
+      }
+    }
+  }
 
   def constantTimeEquals(r: String, s: String): Boolean = {
     if (r == null ^ s == null) return false
@@ -45,12 +65,13 @@ object Utils {
 
   def getOrNull[T](option: Option[T]): T =  option.getOrElse(null.asInstanceOf[T])
 
-  /*
-    final val ISO8601: ThreadLocal[DateFormat] = new ThreadLocal[DateFormat] {
-      protected override def initialValue: DateFormat = new SimpleDateFormat(("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")) {
-        setTimeZone(TimeZone.getTimeZone("GMT"))
-      }
-    }
-  */
+  /** @return number of seconds left until the provided date(prefixed) string (ISO8601 of Internet Date formats) */
+  final def secondsLeft(datePrefixedString: String): Int = datePrefixedString match {
+    case IsoDate(date) => ((date.getMillis - System.currentTimeMillis()) / 1000).toInt
+    case InternetDate(date) => ((date.getMillis - System.currentTimeMillis()) / 1000).toInt
+    case _ =>
+      logger.error("invalid date: " + datePrefixedString)
+      -1
+  }
 
 }

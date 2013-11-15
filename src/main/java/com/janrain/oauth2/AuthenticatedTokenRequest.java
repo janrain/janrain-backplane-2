@@ -95,7 +95,7 @@ public class AuthenticatedTokenRequest implements TokenRequest {
     public Map<String,Object> tokenResponse() throws TokenException, DaoException {
         logger.info("Responding to authenticated token request...");
         final Token accessToken;
-        final Integer expiresIn = grantType.getAccessType().getTokenExpiresSecondsDefault();
+        final Integer expiresIn = 31536000;  // 1 year
         Date expires = new Date(System.currentTimeMillis() + expiresIn.longValue() * 1000);
         Pair<Scope,List<String>> scopeGrants = processScope();
         try {

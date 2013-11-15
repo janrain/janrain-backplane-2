@@ -19,12 +19,10 @@ package com.janrain.backplane.config;
 import com.janrain.backplane.BuildInfo;
 import com.janrain.backplane.config.dao.ConfigDAOs;
 import com.janrain.backplane.config.model.ServerConfigFields;
-import com.janrain.backplane.dao.redis.RedisMessageProcessor;
 import com.janrain.backplane.server1.dao.BP1DAOs;
 import com.janrain.backplane.server1.dao.redis.RedisBackplane1DualFormatMessageProcessor;
 import com.janrain.backplane.server2.dao.BP2DAOs;
-import com.janrain.backplane.server2.model.Backplane2Message;
-import com.janrain.backplane.server2.model.Backplane2MessageFields;
+import com.janrain.backplane.server2.dao.redis.RedisBackplane2MessageProcessor;
 import com.janrain.commons.util.AwsUtility;
 import com.janrain.commons.util.Pair;
 import com.janrain.redis.Redis;
@@ -153,7 +151,7 @@ public class BackplaneConfig {
         // todo: replace with this after transition to new serialization is complete
         //initZk("/v1_worker", new RedisMessageProcessor<Backplane1MessageFields.EnumVal, Backplane1Message>(BP1DAOs.messageDao()));
         initZk("/v1_worker", new RedisBackplane1DualFormatMessageProcessor(BP1DAOs.messageDao()));
-        initZk("/v2_worker", new RedisMessageProcessor<Backplane2MessageFields.EnumVal, Backplane2Message>(BP2DAOs.messageDao()));
+        initZk("/v2_worker", new RedisBackplane2MessageProcessor(BP2DAOs.messageDao()));
     }
 
     private void initZk(String leaderPath, LeaderSelectorListener listener) {

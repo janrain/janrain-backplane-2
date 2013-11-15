@@ -25,6 +25,8 @@ class Token(data: Map[String,String]) extends Message(data, TokenFields.values) 
 
   def asLegacy = new com.janrain.backplane2.server.Token(mapAsJavaMap(this))
 
+  def expireSeconds: Option[Int] = get(TokenFields.EXPIRES).map( Utils.secondsLeft(_) )
+
   def grantType: GrantType = get(TokenFields.TYPE).map(typeValue => {
     try {
       GrantType.valueOf(typeValue)
@@ -60,10 +62,7 @@ class Token(data: Map[String,String]) extends Message(data, TokenFields.values) 
     response.put(OAUTH2_TOKEN_TYPE_PARAM_NAME, OAUTH2_TOKEN_TYPE_BEARER)
     response.put(OAUTH2_ACCESS_TOKEN_PARAM_NAME, id)
     get(TokenFields.SCOPE).foreach( response.put(OAUTH2_SCOPE_PARAM_NAME, _) )
-    get(TokenFields.EXPIRES).foreach { expValue =>
-      val expireSeconds: Long = (Utils.ISO8601.parseDateTime(expValue).getMillis - new Date().getTime) / 1000
-      response.put(OAUTH2_TOKEN_RESPONSE_EXPIRES, expireSeconds.toString )
-    }
+    expireSeconds.foreach( expValue => response.put(OAUTH2_TOKEN_RESPONSE_EXPIRES, expValue.toString ) )
     if (refreshToken != null)
       response.put(OAUTH2_REFRESH_TOKEN_PARAM_NAME, refreshToken)
     response

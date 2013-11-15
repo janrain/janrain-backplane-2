@@ -3,7 +3,10 @@ package com.janrain.oauth2;
 import com.janrain.backplane.common.BackplaneServerException;
 import com.janrain.backplane.dao.DaoException;
 import com.janrain.backplane.server2.dao.BP2DAOs;
-import com.janrain.backplane.server2.model.*;
+import com.janrain.backplane.server2.model.Backplane2MessageFields;
+import com.janrain.backplane.server2.model.BusConfig2;
+import com.janrain.backplane.server2.model.Channel;
+import com.janrain.backplane.server2.model.ChannelFields;
 import com.janrain.backplane.server2.oauth2.model.Token;
 import com.janrain.backplane2.server.GrantType;
 import com.janrain.backplane2.server.Scope;
@@ -67,6 +70,17 @@ public class AnonymousTokenRequest implements TokenRequest {
                 if ( this.busConfig == null) {
                     throw new TokenException("Invalid bus: " + bus);
                 }
+            } else if (refreshToken != null) {
+                final Set<String> channels = refreshToken.scope().getScopeFieldValues(Backplane2MessageFields.CHANNEL());
+                final Set<String> buses = refreshToken.scope().getScopeFieldValues(Backplane2MessageFields.BUS());
+                if ( channels == null || channels.isEmpty() || channels.size() > 1 ||
+                        buses == null || buses.isEmpty() || buses.size() > 1 ) {
+                    throw new TokenException("invalid anonymous refresh token: " + refreshToken.id());
+                } else {
+                    busConfig = Utils.getOrNull(BP2DAOs.busDao().get(buses.iterator().next()));
+                    channelExistingId = channels.iterator().next();
+                    channelExistingExpireSeconds = BP2DAOs.channelDao().getExpire(channelExistingId);
+                }
             }
         } catch (Exception e) {
             logger.error("error processing anonymous token request: " + e.getMessage(), e);
@@ -81,14 +95,15 @@ public class AnonymousTokenRequest implements TokenRequest {
     public Map<String,Object> tokenResponse() throws TokenException {
         logger.info("Responding to anonymous token request...");
         final Token accessToken;
-        final Integer expiresIn = grantType.getAccessType().getTokenExpiresSecondsDefault();
-        Date expires = new Date(System.currentTimeMillis() + expiresIn.longValue() * 1000);
         try {
-            Channel channel = createOrRefreshChannel(10 * expiresIn);
+            int accessTokenExpireSeconds = BP2DAOs.tokenDao().expireSeconds();
+            Channel channel = createOrRefreshChannel(accessTokenExpireSeconds);
             Scope processedScope = processScope(channel.id(), Utils.getOrNull(channel.get(ChannelFields.BUS())));
+            Date expires = new Date(System.currentTimeMillis() + accessTokenExpireSeconds * 1000);
             accessToken = new TokenBuilder(grantType.getAccessType(), processedScope.toString()).expires(expires).buildToken();
             BP2DAOs.tokenDao().store(accessToken);
-            return accessToken.response(generateRefreshToken(grantType.getRefreshType(), processedScope));
+            String refreshToken = generateRefreshToken(grantType.getRefreshType(), processedScope, accessTokenExpireSeconds);
+            return accessToken.response(refreshToken);
         } catch (Exception e) {
             logger.error("error processing anonymous access token request: " + e.getMessage(), e);
             throw new TokenException(OAuth2.OAUTH2_TOKEN_SERVER_ERROR, "error processing anonymous token request", HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -113,32 +128,24 @@ public class AnonymousTokenRequest implements TokenRequest {
     private final Scope requestScope;
     private Token refreshToken;
     private BusConfig2 busConfig;
+    private String channelExistingId = null;
+    private int channelExistingExpireSeconds = 0;
 
-    private static String generateRefreshToken(GrantType refreshType, Scope scope) throws BackplaneServerException, DaoException {
+    private String generateRefreshToken(GrantType refreshType, Scope scope, int tokenExpireSeconds) throws BackplaneServerException, DaoException {
         if (refreshType == null || ! refreshType.isRefresh()) return null;
-        Token refreshToken = new TokenBuilder(refreshType, scope.toString()).buildToken();
+        // channelExistingExpireSeconds updated on sticky message post
+        int refreshExpireSeconds = Math.max(channelExistingExpireSeconds, tokenExpireSeconds + busConfig.retentionTimeSeconds());
+        Token refreshToken = new TokenBuilder(refreshType, scope.toString())
+                .expires(new Date(System.currentTimeMillis() + refreshExpireSeconds * 1000)).buildToken();
         BP2DAOs.tokenDao().store(refreshToken);
         return refreshToken.id();
     }
 
-    private Channel createOrRefreshChannel(int expireSeconds) throws TokenException, SimpleDBException, BackplaneServerException, DaoException {
-        String channelId = null;
-        BusConfig2 config;
-        if (refreshToken != null ) {
-            final Set<String> channels = refreshToken.scope().getScopeFieldValues(Backplane2MessageFields.CHANNEL());
-            final Set<String> buses = refreshToken.scope().getScopeFieldValues(Backplane2MessageFields.BUS());
-            if ( channels == null || channels.isEmpty() || channels.size() > 1 ||
-                    buses == null || buses.isEmpty() || buses.size() > 1 ) {
-                throw new TokenException("invalid anonymous refresh token: " + refreshToken.id());
-            } else {
-                config = Utils.getOrNull(BP2DAOs.busDao().get(buses.iterator().next()));
-                channelId = channels.iterator().next();
-            }
-        } else {
-            config = busConfig;
-        }
-        Channel channel = new Channel(channelId, config, expireSeconds);
-        BP2DAOs.channelDao().store(channel);
+    private Channel createOrRefreshChannel(int tokenExpireSeconds) throws TokenException, SimpleDBException, BackplaneServerException, DaoException {
+        // channelExistingExpireSeconds updated on sticky message post
+        int channelExpireSeconds = Math.max(channelExistingExpireSeconds, tokenExpireSeconds + busConfig.retentionTimeSeconds());
+        Channel channel = new Channel(channelExistingId, busConfig, channelExpireSeconds);
+        BP2DAOs.channelDao().store(channel, channelExpireSeconds);
         return channel;
     }
 

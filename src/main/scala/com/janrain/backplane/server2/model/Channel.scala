@@ -25,6 +25,8 @@ class Channel(data: Map[String,String]) extends Message(data, ChannelFields.valu
 
   def idField = ChannelFields.ID
 
+  def expireSeconds = get(ChannelFields.EXPIRE_SECONDS).map(_.toInt)
+
   def asLegacy = new com.janrain.backplane2.server.Channel(mapAsJavaMap(this))
 }
 

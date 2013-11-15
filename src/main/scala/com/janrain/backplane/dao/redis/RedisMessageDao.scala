@@ -24,11 +24,11 @@ abstract class RedisMessageDao[MT <: Message[_]](val keyPrefix: String) extends 
       throw new DaoException("expire failed for %s : redis returned false".format(getKey(id)))
   }
 
-  def expire(seconds: Int, ids: String*): List[(String, Boolean)] =
+  def expire( idsAndSeconds: (String,Int)* ) = {
+    val ids = idsAndSeconds.map(_._1)
     ids.zip(
       Redis.writePool.withClient( _.pipeline( p => {
-        for (id <- ids)
-          p.expire(getKey(id), seconds)
+        for( (id,seconds) <- idsAndSeconds) p.expire(getKey(id), seconds)
       }))
       .getOrElse(throw new DaoException("multi-expire failed for key prefix %s  items: [%s]".format(keyPrefix, ids.mkString(","))))
       .map {
@@ -37,6 +37,7 @@ abstract class RedisMessageDao[MT <: Message[_]](val keyPrefix: String) extends 
           .format(keyPrefix, ids.mkString(","),err))
       }
     ).toList
+  }
 
   def store(item: MT) {
     if (! Redis.writePool.withClient(_.hmset(getKey(item.id), item)))

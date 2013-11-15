@@ -1,6 +1,6 @@
 package com.janrain.backplane.server2.dao
 
-import com.janrain.backplane.dao.redis.{MessageProcessorDaoSupport, RedisMessageDao}
+import com.janrain.backplane.dao.redis.{Redis, MessageProcessorDaoSupport, RedisMessageDao}
 import com.janrain.backplane.server2.oauth2.model._
 import com.janrain.backplane.dao.{LegacyDaoForwarder, PasswordHasherDao, ExpiringDao}
 import com.janrain.backplane.server2.model._
@@ -127,6 +127,8 @@ object BP2DAOs {
     protected def instantiate(data: Map[_, _]) = new Channel( data.map( kv => kv._1.toString -> kv._2.toString ))
 
     val legacyDao = com.janrain.backplane2.server.dao.BP2DAOs.getChannelDao
+
+    def getExpire(channelId: String) = Redis.readPool.withClient(_.ttl(getKey(channelId)).getOrElse(0L).toInt)
   }
 
   type BackplaneMessageDaoWithProcessor = Backplane2MessageDao with MessageProcessorDaoSupport[Backplane2MessageFields.EnumVal,Backplane2Message]
