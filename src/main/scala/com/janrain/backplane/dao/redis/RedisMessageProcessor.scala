@@ -15,6 +15,7 @@ import java.util.Date
 import com.janrain.backplane.common.DateTimeUtils
 import com.janrain.util.Loggable
 import com.netflix.curator.framework.recipes.leader.LeaderSelectorListener
+import scala.annotation.tailrec
 
 
 /**
@@ -81,21 +82,30 @@ class RedisMessageProcessor[BMF <: MessageField, BMT <: BackplaneMessage[BMF]]( 
 
   /** Processor to pull messages off queue and make them available */
   private def insertMessages() {
-    while (isLeader) {
-      try {
-        Redis.writePool.withClient(processSingleBatchOfPendingMessages)
-        Thread.sleep(150)
-      } catch {
-        case e: Exception => {
-          logger.warn(e)
+    @tailrec
+    def insertLoop(leader: => Boolean, redisConsecutiveFailures: Int) {
+      if (leader && redisConsecutiveFailures < 3) {
+        insertLoop(isLeader,
           try {
-            Thread.sleep(2000)
+            Redis.writePool.withClient(processSingleBatchOfPendingMessages)
+            Thread.sleep(150)
+            0
           } catch {
-            case ie: InterruptedException => // ignore
+            case e: Exception => {
+              logger.warn(e)
+              try {
+                Thread.sleep(2000)
+              } catch {
+                case ie: InterruptedException => // ignore
+              }
+              redisConsecutiveFailures + 1
+            }
           }
-        }
+        )
       }
     }
+
+    insertLoop(isLeader, 0)
   }
 
   private def processSingleBatchOfPendingMessages(redisClient: RedisClient) {
