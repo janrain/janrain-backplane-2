@@ -4,6 +4,7 @@ import com.redis.RedisClientPool
 import com.janrain.util.{Utils, Loggable}
 import com.janrain.backplane.config.SystemProperties
 import scala.util.Random
+import org.apache.commons.lang.exception.ExceptionUtils
 
 /**
  * @author Johnny Bufu
@@ -28,6 +29,17 @@ object Redis extends Loggable {
 
   logger.info("initialized redis read pool(s) for [%s], max idle connections per server: %s)".format(readPools.map(_._1).mkString(" "), REDIS_DEFAULT_MAX_IDLE_CLIENTS))
 
+
+  /** @return list of (pinged redis server name, optional ping result) */
+  def pingAll: List[(String, Option[String])] =
+    ((s"MASTER: $writeRedisHost:$writeRedisPort" , writePool) :: readPools.toList).map {
+      case (name, redis) =>
+        try {
+          name -> redis.withClient(client => client.send("PING")(client.asString))
+        } catch {
+          case e: Exception => name -> Some(ExceptionUtils.getRootCauseMessage(e))
+        }
+    }
 
   private def redisHostAndPort(hostAndPort: String) = {
     val (host,port) = hostAndPort.span(_ != ':')

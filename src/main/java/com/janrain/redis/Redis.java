@@ -317,7 +317,7 @@ public class Redis implements PathChildrenCacheListener {
             // something bad
             logger.warn(label + ": error during ping");
         } finally {
-            //logger.info(label + ": PING " + System.getProperty(SystemProperties.REDIS_SERVER_PRIMARY()) + " (" + SystemProperties.REDIS_SERVER_PRIMARY() + ") -> " + replyJedisWrite);
+            logger.info(label + ": PING " + System.getProperty(SystemProperties.REDIS_SERVER_PRIMARY()) + " (" + SystemProperties.REDIS_SERVER_PRIMARY() + ") -> " + replyJedisWrite);
             releaseToPool(jedisWrite);
         }
 
@@ -328,7 +328,7 @@ public class Redis implements PathChildrenCacheListener {
             // something bad
             logger.warn(label + ": error during ping");
         } finally {
-            //logger.info(label + ": PING " + System.getProperty(SystemProperties.REDIS_SERVER_READS()) + " (" + SystemProperties.REDIS_SERVER_READS() + ") -> " + replyJedisRead);
+            logger.info(label + ": PING " + System.getProperty(SystemProperties.REDIS_SERVER_READS()) + " (" + SystemProperties.REDIS_SERVER_READS() + ") -> " + replyJedisRead);
             releaseToPool(jedisRead);
         }
 

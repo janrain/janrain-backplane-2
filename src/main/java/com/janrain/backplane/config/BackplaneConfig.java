@@ -17,15 +17,16 @@
 package com.janrain.backplane.config;
 
 import com.janrain.backplane.BuildInfo;
+import com.janrain.backplane.common.BackplaneServerException;
 import com.janrain.backplane.config.dao.ConfigDAOs;
 import com.janrain.backplane.config.model.ServerConfigFields;
+import com.janrain.backplane.dao.redis.RedisPingTask;
 import com.janrain.backplane.server1.dao.BP1DAOs;
 import com.janrain.backplane.server1.dao.redis.RedisBackplane1DualFormatMessageProcessor;
 import com.janrain.backplane.server2.dao.BP2DAOs;
 import com.janrain.backplane.server2.dao.redis.RedisBackplane2MessageProcessor;
 import com.janrain.commons.util.AwsUtility;
 import com.janrain.commons.util.Pair;
-import com.janrain.redis.Redis;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.CuratorFrameworkFactory;
 import com.netflix.curator.framework.recipes.leader.LeaderSelector;
@@ -35,15 +36,15 @@ import com.yammer.metrics.Metrics;
 import com.yammer.metrics.reporting.ConsoleReporter;
 import com.yammer.metrics.reporting.GraphiteReporter;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
 import org.springframework.context.annotation.Scope;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -76,14 +77,21 @@ public class BackplaneConfig {
         return max == null ? BackplaneConfig.BP_MAX_MESSAGES_DEFAULT : max;
     }
 
+    /**
+     * Allows administrative configuration for excluding specific nodes from keeping the leader selection
+     * and becoming the active message processor. Configuration is done by adding an entry to the serverConfigDao
+     * object ('backplane_server_config' redis entry), with the key equal to the EC2 instance id of the node
+     * (value is ignored).
+     *
+     * @return true if the node with the supplied EC2 instance id is disabled from message processing
+     */
     public static boolean isLeaderDisabled() {
-        // skip DAO layer, not so crazy about editing serialized streams for debug, yay FED-76
-        return isDebugMode() && Redis.getInstance().get(EC2InstanceId) != null;
+        return ConfigDAOs.serverConfigDao().oneServerConfig().get().get(EC2InstanceId).isDefined();
     }
 
     public static Throwable getDebugException(Throwable e) {
         return isDebugMode() ? e: null;
-     }
+    }
 
     /**
      * Retrieve the server instance id Amazon assigned
@@ -109,7 +117,7 @@ public class BackplaneConfig {
     private static String EC2InstanceId = AwsUtility.retrieveEC2InstanceId();
 
     @SuppressWarnings({"UnusedDeclaration"})
-    private BackplaneConfig() {
+    private BackplaneConfig() throws BackplaneServerException {
         ConsoleReporter.enable(10, TimeUnit.MINUTES);
 
         // Dump metrics to graphite server
@@ -126,49 +134,40 @@ public class BackplaneConfig {
             }
         }
 
-        logger.info("Configured Backplane Server instance: " + SystemProperties.INSTANCE_ID());
-    }
+        ArrayList<LeaderSelector> leaderSelectors = new ArrayList<LeaderSelector>() {{
+            // todo: replace with this after transition to new serialization is complete
+            //initZk("/v1_worker", new RedisMessageProcessor<Backplane1MessageFields.EnumVal, Backplane1Message>(BP1DAOs.messageDao()));
+            add( initZk("/v1_worker", new RedisBackplane1DualFormatMessageProcessor(BP1DAOs.messageDao())) );
+            add( initZk("/v2_worker", new RedisBackplane2MessageProcessor(BP2DAOs.messageDao())) );
+        }};
 
-    private Pair<String, ExecutorService> createPingTask() {
-        final String label = "redis/jedis";
-        ScheduledExecutorService ping = Executors.newScheduledThreadPool(1);
-        ping.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
-                com.janrain.redis.Redis.getInstance().ping(label);
-            }
-        }, 30, 10, TimeUnit.SECONDS);
-        return new Pair<String, ExecutorService>(label, ping);
+        addTask(backgroundServices, RedisPingTask.scalaObject().apply(leaderSelectors));
+
+        logger.info("Configured Backplane Server instance: " + SystemProperties.INSTANCE_ID());
     }
 
     private void addTask(Map<String, ExecutorService> backgroundServices, Pair<String, ExecutorService> nameAndService) {
         backgroundServices.put(nameAndService.getLeft(), nameAndService.getRight());
     }
 
-    @PostConstruct
-    private void init() {
-        addTask(backgroundServices, createPingTask());
-        // todo: replace with this after transition to new serialization is complete
-        //initZk("/v1_worker", new RedisMessageProcessor<Backplane1MessageFields.EnumVal, Backplane1Message>(BP1DAOs.messageDao()));
-        initZk("/v1_worker", new RedisBackplane1DualFormatMessageProcessor(BP1DAOs.messageDao()));
-        initZk("/v2_worker", new RedisBackplane2MessageProcessor(BP2DAOs.messageDao()));
-    }
-
-    private void initZk(String leaderPath, LeaderSelectorListener listener) {
+    private LeaderSelector initZk(String leaderPath, LeaderSelectorListener listener) throws BackplaneServerException {
         try {
             String zkServerConfig = System.getProperty(SystemProperties.ZOOKEEPER_SERVERS());
             if (StringUtils.isEmpty(zkServerConfig)) {
-                logger.error("Cannot find configuration entry for ZooKeeper server ('" + SystemProperties.ZOOKEEPER_SERVERS() + "' system property)" );
-                System.exit(1);
+                String errMsg = "ZooKeeper server system or environment property ('" + SystemProperties.ZOOKEEPER_SERVERS() + "') not configured";
+                logger.error( errMsg );
+                throw new BackplaneServerException(errMsg);
             }
             CuratorFramework client = CuratorFrameworkFactory.newClient(zkServerConfig, new ExponentialBackoffRetry(50, 20));
             client.start();
             LeaderSelector leaderSelector = new LeaderSelector(client, leaderPath, listener);
-            leaderSelector.autoRequeue();
             leaderSelector.start();
             com.janrain.redis.Redis.getInstance().setActiveRedisInstance(client);
+            return leaderSelector;
         } catch (Exception e) {
-            logger.error(e);
+            String errMsg = ExceptionUtils.getRootCauseMessage(e);
+            logger.error(errMsg, e);
+            throw new BackplaneServerException(errMsg, e);
         }
     }
 
@@ -182,7 +181,7 @@ public class BackplaneConfig {
 
     private void shutdownExecutor(String serviceName, ExecutorService executor) {
         try {
-            executor.shutdown();
+            executor.shutdownNow();
             if (executor.awaitTermination(10, TimeUnit.SECONDS)) {
                 logger.info(serviceName + " background thread shutdown properly");
             } else {
