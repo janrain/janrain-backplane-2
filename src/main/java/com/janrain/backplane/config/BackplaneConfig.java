@@ -86,7 +86,7 @@ public class BackplaneConfig {
      * @return true if the node with the supplied EC2 instance id is disabled from message processing
      */
     public static boolean isLeaderDisabled() {
-        return ConfigDAOs.serverConfigDao().oneServerConfig().get().get(EC2InstanceId).isDefined();
+        return isDebugMode() && ConfigDAOs.serverConfigDao().oneServerConfig().get().get(EC2InstanceId).isDefined();
     }
 
     public static Throwable getDebugException(Throwable e) {
