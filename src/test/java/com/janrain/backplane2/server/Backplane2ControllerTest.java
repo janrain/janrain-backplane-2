@@ -27,6 +27,7 @@ import com.janrain.backplane.server2.model.BusConfig2;
 import com.janrain.backplane.server2.model.BusConfig2Fields;
 import com.janrain.backplane.server2.oauth2.model.*;
 import com.janrain.oauth2.*;
+import com.janrain.redis.RedisTest;
 import com.janrain.servlet.InvalidRequestException;
 import com.janrain.util.RandomUtils;
 import com.janrain.util.Utils;
@@ -325,7 +326,7 @@ public class Backplane2ControllerTest {
                 matches("[{]\"token_type\":\\s*\"Bearer\",\\s*" +
                         "\\s*\"access_token\":\\s*\".{27}\",\\s*" +
                         "\"scope\":\"bus:\\s*testbus\\s*channel:.{34}\",\\s*" +
-                        "\"expires_in\":\\s*\"604[0-9]{3}\",\\s*" +
+                        "\"expires_in\":\\s*\"35[0-9]{2}\",\\s*" +
                         "\"refresh_token\":\".{27}\"\\s*[}]"));
 
         // cleanup test tokens
@@ -1666,6 +1667,70 @@ public class Backplane2ControllerTest {
         Backplane2Message lastMessage = BP2DAOs.messageDao().retrieveMessagesPerScope(new Scope("channel:bar"), null)._1().reverse().head();
 
         assertTrue("messages not equal", lastMessage.id().equals(message.id()));
+    }
+
+    @Test
+    public void testExpiration() throws Exception {
+
+        TokensAndChannel tokensAndChannel = anonTokenRequest("testbus");
+
+        int busRetentionSeconds = BP2DAOs.busDao().get("testbus").get().retentionTimeSeconds();
+
+        assertTrue("access token expiration should be within 10s of " + BP2DAOs.tokenDao().expireSeconds(),
+          Math.abs(BP2DAOs.tokenDao().expireSeconds() - RedisTest.tokenExpirationSeconds(tokensAndChannel.bearerToken)) < 10);
+        assertTrue("refresh token expiration should be within 10s of " + BP2DAOs.tokenDao().expireSeconds() + " + " + busRetentionSeconds,
+          Math.abs(BP2DAOs.tokenDao().expireSeconds() + busRetentionSeconds - RedisTest.tokenExpirationSeconds(tokensAndChannel.refreshToken)) < 10);
+        assertTrue("channel expiration should be within 10s of " + BP2DAOs.tokenDao().expireSeconds() + " + " + busRetentionSeconds,
+          Math.abs(BP2DAOs.tokenDao().expireSeconds() + busRetentionSeconds - BP2DAOs.channelDao().getExpire(tokensAndChannel.channel)) < 10);
+
+        // post sticky message, check channel expiration afterwards
+        ObjectMapper mapper = new ObjectMapper();
+        saveGrant(new GrantBuilder(GrantType.CLIENT_CREDENTIALS, GrantState.ACTIVE, "fakeOwnerId", testClient.id(),"bus:testbus").buildGrant());
+        String privToken = privTokenRequest(Scope.getEncodedScopesAsString(Backplane2MessageFields.BUS(), "testbus"));
+
+        refreshRequestAndResponse();
+        request.setRequestURI("/v2/message");
+        request.setMethod("POST");
+        request.addHeader("Content-type", "application/json");
+        setOauthBearerTokenAuthorization(request, privToken);
+
+        String stickyMessage = TEST_MSG_1.replace("false", "true");
+        HashMap<String, Object> msg = new HashMap<String, Object>();
+        Map<String,Object> postMessage = mapper.readValue(stickyMessage, new TypeReference<Map<String, Object>>(){});
+        postMessage.put(Backplane2MessageFields.BUS().name(), "testbus");
+        postMessage.put(Backplane2MessageFields.CHANNEL().name(), tokensAndChannel.channel);
+        msg.put("message", postMessage);
+        String msgsString = mapper.writeValueAsString(msg);
+        logger.info(msgsString);
+        request.setContent(msgsString.getBytes());
+
+        handlerAdapter.handle(request, response, controller);
+        logger.info(response.getContentAsString());
+
+        Thread.sleep(2000);
+
+        int busRetentionStickySeconds = BP2DAOs.busDao().get("testbus").get().retentionTimeStickySeconds();
+        assertTrue("channel expiration after posting a sticky message should be within 10s of "
+                   + BP2DAOs.tokenDao().expireSeconds() + " + " + busRetentionStickySeconds,
+                Math.abs(BP2DAOs.tokenDao().expireSeconds() + busRetentionStickySeconds - BP2DAOs.channelDao().getExpire(tokensAndChannel.channel)) < 10);
+
+
+        // refresh token, check expiration of new refresh token
+        refreshRequestAndResponse();
+        request.setRequestURI("/v2/token/");
+        request.setMethod("GET");
+        request.addParameter("callback", "bla");
+        request.setParameter("refresh_token", tokensAndChannel.refreshToken);
+
+        handlerAdapter.handle(request, response, controller);
+
+        String result = response.getContentAsString();
+        Map<String,Object> tokenResponse = mapper.readValue(result, new TypeReference<Map<String, Object>>() {});
+        String refreshToken2 = tokenResponse.get("refresh_token").toString();
+
+        assertTrue("refresh token expiration after posting a sticky message should be within 10s of "
+                + BP2DAOs.tokenDao().expireSeconds() + " + " + busRetentionStickySeconds,
+                Math.abs(BP2DAOs.tokenDao().expireSeconds() + busRetentionStickySeconds - RedisTest.tokenExpirationSeconds(refreshToken2)) < 10);
     }
 
     // - PRIVATE

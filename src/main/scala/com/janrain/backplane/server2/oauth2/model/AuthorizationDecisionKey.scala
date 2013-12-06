@@ -19,6 +19,8 @@ class AuthorizationDecisionKey(data: Map[String,String]) extends Message(data, A
     ))
 
   def idField = AuthorizationDecisionKeyFields.KEY
+
+  def expireSeconds = Option.empty[Int] // use dao-default
 }
 
 object AuthorizationDecisionKey {

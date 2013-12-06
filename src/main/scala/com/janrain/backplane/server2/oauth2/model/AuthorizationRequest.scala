@@ -21,6 +21,8 @@ class AuthorizationRequest(data: Map[String,String]) extends Message(data, Autho
 
   def idField = AuthorizationRequestFields.COOKIE
 
+  def expireSeconds = Option.empty[Int] // use dao-default
+
   def getRedirectUri: String = {
     val client_id = get(AuthorizationRequestFields.CLIENT_ID)
     client_id

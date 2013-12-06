@@ -1,27 +1,41 @@
 package com.janrain.backplane.dao
 
 /**
+ * Stackable trait DAO for an expiring items:
+ *
+ * Items must implement expireSeconds(), but may optionally return None,
+ * in which case the DAO-level expireSeconds() is used.
+ *
  * @author Johnny Bufu
  */
-trait ExpiringDao[T <: {def id : String}] extends Dao[T] {
+trait ExpiringDao[ET <: {def id : String; def expireSeconds: Option[Int]}] extends Dao[ET] {
 
   val expireSeconds: Int
 
   def expire(seconds: Int, id: String)
 
-  def expire(seconds: Int, ids: String*): List[(String, Boolean)]
+  def expire( idsAndSeconds: (String,Int)* ): List[(String, Boolean)]
 
-  abstract override def store(item: T) {
+  def store(item: ET, expSeconds: Int) {
     super.store(item)
-    expire(expireSeconds, item.id)
+    expire(expSeconds, item.id)
   }
 
-  abstract override def store(items: T*): List[(String,Boolean)] =
-    items.map(_.id).zip(
+  abstract override def store(item: ET) {
+    store(item, itemExpireSeconds(item))
+  }
+
+  abstract override def store(items: ET*): List[(String,Boolean)] = {
+    val itemIdsAndExpirations = items.map(i => (i.id, itemExpireSeconds(i)))
+    val itemIds = items.map(_.id)
+    itemIds.zip(
       for {
         storeRes <- super.store(items: _*).map(_._2)
-        expireRes <- expire(expireSeconds, items.map(_.id): _*).map(_._2)
+        expireRes <- expire(itemIdsAndExpirations: _*).map(_._2)
       } yield {
         storeRes && expireRes
       }).toList
+  }
+
+  private def itemExpireSeconds(item: ET): Int = item.expireSeconds.getOrElse(expireSeconds)
 }
