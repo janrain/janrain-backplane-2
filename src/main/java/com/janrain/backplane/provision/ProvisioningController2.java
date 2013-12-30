@@ -22,6 +22,8 @@ import com.janrain.backplane.common.model.Message;
 import com.janrain.backplane.common.model.MessageField;
 import com.janrain.backplane.config.BackplaneConfig;
 import com.janrain.backplane.config.dao.ConfigDAOs;
+import com.janrain.backplane.config.model.Admin;
+import com.janrain.backplane.config.model.AdminFields;
 import com.janrain.backplane.dao.DaoAll;
 import com.janrain.backplane.dao.DaoException;
 import com.janrain.backplane.server2.dao.BP2DAOs;
@@ -62,55 +64,85 @@ public class ProvisioningController2 {
     @ResponseBody
     public Map<String, Map<String, String>> busList(HttpServletRequest request, @RequestBody ListRequest listRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
-        return doList(BusConfig2.class, listRequest.getEntities(), BusConfig2Fields.BUS_NAME());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
+        Map<String, Map<String, String>> result = doList(BusConfig2.class, listRequest.getEntities(), BusConfig2Fields.BUS_NAME());
+        logger.info(String.format("admin: %s listed buses: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                listRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/user/list", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, Map<String, String>> userList(HttpServletRequest request, @RequestBody ListRequest listRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
-        return doList(BusOwner.class, listRequest.getEntities(), BusOwnerFields.USER());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
+        Map<String, Map<String, String>> result = doList(BusOwner.class, listRequest.getEntities(), BusOwnerFields.USER());
+        logger.info(String.format("admin: %s listed users: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                listRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/client/list", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, Map<String, String>> clientList(HttpServletRequest request, @RequestBody ListRequest listRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
-        return doList(Client.class, listRequest.getEntities(), ClientFields.USER());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
+        Map<String, Map<String, String>> result = doList(Client.class, listRequest.getEntities(), ClientFields.USER());
+        logger.info(String.format("admin: %s listed clients: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                listRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/bus/delete", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> busDelete(HttpServletRequest request, @RequestBody ListRequest deleteRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
-        return doDelete(BusConfig2.class, deleteRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
+        Map<String, String> result = doDelete(BusConfig2.class, deleteRequest.getEntities());
+        logger.info(String.format("admin: %s deleted buses: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                deleteRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/user/delete", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> userDelete(HttpServletRequest request, @RequestBody ListRequest deleteRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
-        return doDelete(BusOwner.class, deleteRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
+        Map<String, String> result = doDelete(BusOwner.class, deleteRequest.getEntities());
+        logger.info(String.format("admin: %s deleted users: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                deleteRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/client/delete", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> clientDelete(HttpServletRequest request, @RequestBody ListRequest deleteRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
-        return doDelete(Client.class, deleteRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
+        Map<String, String> result = doDelete(Client.class, deleteRequest.getEntities());
+        logger.info(String.format("admin: %s deleted clients: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                deleteRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/bus/update", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> busUpdate(HttpServletRequest request, @RequestBody UpdateRequest updateRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
         Map<String,String> result = new LinkedHashMap<String, String>();
         for(Map<String,String> config : updateRequest.getConfigs()) {
             String updateStatus = BACKPLANE_UPDATE_SUCCESS;
@@ -128,6 +160,10 @@ public class ProvisioningController2 {
             String requestEntryId = config.get(BusConfig2Fields.BUS_NAME().name().toUpperCase());
             result.put(requestEntryId != null ? requestEntryId : "<unknown>", updateStatus);
         }
+        logger.info(String.format("admin: %s updated buses: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.keySet())
+        );
         return result;
     }
 
@@ -135,7 +171,7 @@ public class ProvisioningController2 {
     @ResponseBody
     public Map<String, String> userUpdate(HttpServletRequest request, @RequestBody UpdateRequest updateRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
         Map<String,String> result = new LinkedHashMap<String, String>();
         for(Map<String,String> config : updateRequest.getConfigs()) {
             String updateStatus = BACKPLANE_UPDATE_SUCCESS;
@@ -147,6 +183,10 @@ public class ProvisioningController2 {
             String requestEntryId = config.get(BusOwnerFields.USER().name().toUpperCase());
             result.put(requestEntryId != null ? requestEntryId : "<unknown>", updateStatus);
         }
+        logger.info(String.format("admin: %s updated users: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.keySet())
+        );
         return result;
     }
 
@@ -155,7 +195,7 @@ public class ProvisioningController2 {
     public Map<String, String> clientUpdate(HttpServletRequest request, @RequestBody UpdateRequest updateRequest) throws AuthException {
         ServletUtil.checkSecure(request);
         logger.debug("client updateRequest: '" + updateRequest + "'");
-        ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
         Map<String,String> result = new LinkedHashMap<String, String>();
         for(Map<String,String> config : updateRequest.getConfigs()) {
             String updateStatus = BACKPLANE_UPDATE_SUCCESS;
@@ -167,6 +207,10 @@ public class ProvisioningController2 {
             String requestEntryId = config.get(ClientFields.USER().name().toUpperCase());
             result.put(requestEntryId != null ? requestEntryId : "<unknown>", updateStatus);
         }
+        logger.info(String.format("admin: %s updated clients: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.keySet())
+        );
         return result;
     }
 
@@ -174,7 +218,7 @@ public class ProvisioningController2 {
     @ResponseBody
     public Map<String, Map<String, String>> grantList(HttpServletRequest request, @RequestBody ListRequest listRequest) throws AuthException, DaoException {
         ServletUtil.checkSecure(request);
-        ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
 
         Map<String,Map<String,String>> result = new LinkedHashMap<String, Map<String, String>>();
 
@@ -198,6 +242,10 @@ public class ProvisioningController2 {
                 }});
             }
         }
+        logger.info(String.format("admin: %s listed grants: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.keySet())
+        );
         return result;
     }
 
@@ -205,16 +253,28 @@ public class ProvisioningController2 {
     @ResponseBody
     public Map<String, String> grantAdd(HttpServletRequest request, @RequestBody GrantRequest grantRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        logger.debug("grant add request: '" + grantRequest + "'");
-        return doGrant(grantRequest, true);
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(grantRequest.getAdmin(), grantRequest.getSecret());
+        Map<String, String> result = doGrant(grantRequest, true);
+        logger.info(String.format("admin: %s added grants: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.toString())
+        );
+        return result;
+
     }
 
     @RequestMapping(value = "/grant/revoke", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> gantRevoke(HttpServletRequest request, @RequestBody GrantRequest grantRequest) throws AuthException {
         ServletUtil.checkSecure(request);
-        logger.debug("grant revoke request: '" + grantRequest + "'");
-        return doGrant(grantRequest, false);
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(grantRequest.getAdmin(), grantRequest.getSecret());
+        Map<String, String> result = doGrant(grantRequest, false);
+        logger.info(String.format("admin: %s revoked grants: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.toString())
+        );
+
+        return result;
     }
 
     /**
@@ -312,8 +372,6 @@ public class ProvisioningController2 {
 
     private Map<String, String> doGrant(GrantRequest grantRequest, boolean addRevoke) throws AuthException {
         Map<String,String> result = new LinkedHashMap<String, String>();
-        ConfigDAOs.adminDao().getAuthenticated(grantRequest.getAdmin(), grantRequest.getSecret());
-
         for(Map.Entry<String,String> newGrantEntry : grantRequest.getGrants().entrySet()) {
             String clientId = newGrantEntry.getKey();
             String buses = newGrantEntry.getValue();
