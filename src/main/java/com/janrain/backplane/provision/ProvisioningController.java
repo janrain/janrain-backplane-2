@@ -20,6 +20,8 @@ import com.janrain.backplane.common.AuthException;
 import com.janrain.backplane.common.model.Message;
 import com.janrain.backplane.config.BackplaneConfig;
 import com.janrain.backplane.config.dao.ConfigDAOs;
+import com.janrain.backplane.config.model.Admin;
+import com.janrain.backplane.config.model.AdminFields;
 import com.janrain.backplane.dao.DaoAll;
 import com.janrain.backplane.server1.dao.BP1DAOs;
 import com.janrain.backplane.server1.model.BusConfig1;
@@ -55,35 +57,55 @@ public class ProvisioningController {
     @RequestMapping(value = "/bus/list", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, Map<String, String>> busList(@RequestBody ListRequest listRequest) throws AuthException {
-        ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
-        return doList(BusConfig1.class, listRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
+        Map<String, Map<String, String>> result = doList(BusConfig1.class, listRequest.getEntities());
+        logger.info(String.format("admin: %s listed buses: %s",
+            Utils.getOrNull(admin.get(AdminFields.USER())),
+            listRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/user/list", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, Map<String, String>> userList(@RequestBody ListRequest listRequest) throws AuthException {
-        ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
-        return doList(BusUser.class, listRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(listRequest.getAdmin(), listRequest.getSecret());
+        Map<String, Map<String, String>> result = doList(BusUser.class, listRequest.getEntities());
+        logger.info(String.format("admin: %s listed users: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                listRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/bus/delete", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> busDelete(@RequestBody ListRequest deleteRequest) throws AuthException {
-        ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
-        return doDelete(BusConfig1.class, deleteRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
+        Map<String, String> result = doDelete(BusConfig1.class, deleteRequest.getEntities());
+        logger.info(String.format("admin: %s deleted buses: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                deleteRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/user/delete", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> userDelete(@RequestBody ListRequest deleteRequest) throws AuthException {
-        ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
-        return doDelete(BusUser.class, deleteRequest.getEntities());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(deleteRequest.getAdmin(), deleteRequest.getSecret());
+        Map<String, String> result = doDelete(BusUser.class, deleteRequest.getEntities());
+        logger.info(String.format("admin: %s deleted users: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                deleteRequest.getEntities())
+        );
+        return result;
     }
 
     @RequestMapping(value = "/bus/update", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> busUpdate(@RequestBody UpdateRequest updateRequest) throws AuthException, SimpleDBException {
-        ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
         Map<String,String> result = new LinkedHashMap<String, String>();
         for(Map<String,String> config : updateRequest.getConfigs()) {
             String updateStatus = BACKPLANE_UPDATE_SUCCESS;
@@ -95,13 +117,17 @@ public class ProvisioningController {
             String requestEntryId = config.get(BusConfig1Fields.BUS_NAME().name().toUpperCase());
             result.put(requestEntryId != null ? requestEntryId : "<unknown>", updateStatus);
         }
+        logger.info(String.format("admin: %s updated buses: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.keySet())
+        );
         return result;
     }
 
     @RequestMapping(value = "/user/update", method = RequestMethod.POST)
     @ResponseBody
     public Map<String, String> userUpdate(@RequestBody UpdateRequest updateRequest) throws AuthException, SimpleDBException {
-        ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
+        Admin admin = ConfigDAOs.adminDao().getAuthenticated(updateRequest.getAdmin(), updateRequest.getSecret());
         Map<String,String> result = new LinkedHashMap<String, String>();
         for(Map<String,String> config : updateRequest.getConfigs()) {
             String updateStatus = BACKPLANE_UPDATE_SUCCESS;
@@ -113,6 +139,10 @@ public class ProvisioningController {
             String requestEntryId = config.get(BusUserFields.USER().name().toUpperCase());
             result.put(requestEntryId != null ? requestEntryId : "<unknown>", updateStatus);
         }
+        logger.info(String.format("admin: %s updated users: %s",
+                Utils.getOrNull(admin.get(AdminFields.USER())),
+                result.keySet())
+        );
         return result;
     }
 
