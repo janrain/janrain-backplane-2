@@ -25,7 +25,7 @@
     <version>${project.version}</version>
 
 	<properties>
-        <project.version>BP_2_0.2013.26_RC3-zk-path-fix</project.version>
+        <project.version>BP_2_0.2013.26_encoding</project.version>
         <org.springframework.version>3.0.6.RELEASE</org.springframework.version>
         <org.slf4j.version>1.5.10</org.slf4j.version>
         <powermock.version>1.4.5</powermock.version>
@@ -482,6 +482,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
+		<version>2.1.1</version>
                 <configuration>
                     <warName>backplane-server-${project.version}</warName>
                     <webResources>

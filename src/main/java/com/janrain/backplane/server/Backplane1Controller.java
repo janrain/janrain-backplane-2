@@ -239,7 +239,7 @@ public class Backplane1Controller {
             return new ResponseEntity<String>(
                 resp,
                 new HttpHeaders() {{
-                    add("Content-Type", "application/json");
+                    add("Content-Type", "application/json; charset=utf-8");
                 }},
                 HttpStatus.OK);
 
