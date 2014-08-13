@@ -55,7 +55,7 @@ public class JsonpCallbackFilter implements Filter {
 
             chain.doFilter(request, wrapper);
 
-            stream.write((callbackName + "(").getBytes());
+            stream.write(("/* */" + callbackName + "(").getBytes());
             stream.write(wrapper.getData());
             stream.write(");".getBytes());
 

@@ -102,6 +102,21 @@
     </filter-mapping>
 
     <filter>
+        <description>Adds nosniff header to send back with all responses</description>
+        <filter-name>noSniffHeaderFilter</filter-name>
+        <filter-class>com.janrain.servlet.ResponseHeaderFilter</filter-class>
+        <init-param>
+            <!-- no sniffing! Obey the Content-Type! -->
+            <param-name>X-Content-Type-Options</param-name>
+            <param-value>nosniff</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>noSniffHeaderFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter>
         <description>See 'urlrewrite.xml' config file -- allows us to shorten the required URL path</description>
         <filter-name>UrlRewriteFilter</filter-name>
         <filter-class>org.tuckey.web.filters.urlrewrite.UrlRewriteFilter</filter-class>
