@@ -482,7 +482,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
-		<version>2.1.1</version>
+                <version>2.1.1</version>
                 <configuration>
                     <warName>backplane-server-${project.version}</warName>
                     <webResources>
@@ -546,6 +546,7 @@
                 </executions>
                 <configuration>
                     <file>target/${project.artifactId}-${project.version}/WEB-INF/classes/build.properties</file>
+                    <outputFile>target/classes/build.properties</outputFile>
                     <replacements>
                         <replacement>
                             <token>MAVEN_BUILD_VERSION</token>
