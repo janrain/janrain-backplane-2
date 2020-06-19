@@ -61,6 +61,39 @@ To add the admin user account on initial deployment, use the /admin web interfac
 Building From Source
 --------------------
 
+Prerequisits as of Jun. 17, 2020:
+
+```sh
+# Download org.powermock.api:powermock-api-easymock:jar:1.4.5 manually
+mkdir -p ~/.m2/repository/org/powermock/api/powermock-api-easymock/1.4.5
+pushd ~/.m2/repository/org/powermock/api/powermock-api-easymock/1.4.5
+wget http://www.java2s.com/Code/JarDownload/powermock-easymock/powermock-easymock-1.4.5-full.jar.zip
+unzip powermock-easymock-1.4.5-full.jar.zip
+mv powermock-easymock-1.4.5-full.jar powermock-easymock-1.4.5.jar
+mkdir tmp && cd tmp
+jar xf ../powermock-easymock-1.4.5.jar
+mv META-INF/maven/org.powermock.api/powermock-api-easymock/pom.xml ../powermock-api-easymock-1.4.5.pom
+cd ..
+rm -rf tmp
+
+# Change javassist:javassist:jar:3.13.0.GA to org.javassist:javassist:jar:3.13.0-GA so it can be found in Maven Central
+sed -ie 's/<groupId>javassist/<groupId>org.javassist/' ../../../powermock-core/1.4.5/powermock-core-1.4.5.pom
+sed -ie 's/3.13.0.GA/3.13.0-GA/' ../../../powermock-core/1.4.5/powermock-core-1.4.5.pom
+
+# Build supersimpledb, tbh don't know if this actually functions or on what version of Java
+mkdir -p ~/.m2/repository/com/janrain/commons/supersimpledb/commons-supersimpledb/1.0.27/
+cd ~/.m2/repository/com/janrain/commons/supersimpledb/commons-supersimpledb/1.0.27/
+git clone git@github.com:janrain/supersimpledb.git
+cd supersimpledb
+mvn package -DskipTests=true
+mv pom.xml ../commons-supersimpledb-1.0.27.pom
+mv target/commons-supersimpledb-1.0.28-SNAPSHOT.jar ../commons-supersimpledb-1.0.28.jar
+cd ..
+rm -rf supersimpledb
+
+popd
+```
+
 This project requires the [Maven] [3] build tool.
 
         mvn package -DskipTests=true
